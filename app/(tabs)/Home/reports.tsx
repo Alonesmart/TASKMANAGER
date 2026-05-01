@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../../../theme";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
 const T = {
@@ -65,8 +66,7 @@ const EmptyState = ({ filterKey, t }: { filterKey: (typeof FILTER_KEYS)[number];
 export default function RapportScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
-  const isDark = true;
+  const { theme, isDark } = useAppTheme();
   const [activeFilter, setActiveFilter] = useState<(typeof FILTER_KEYS)[number]>("all");
   const [activeTab, setActiveTab] = useState("reports");
 

@@ -4,11 +4,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome, AntDesign } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useAppTheme } from "../../../theme";
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
+  const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
@@ -25,26 +26,26 @@ export default function RegisterScreen() {
       <View style={styles.card}>
         <TextInput
           placeholder={t("auth.name")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           style={styles.input}
         />
 
         <TextInput
           placeholder={t("auth.phone")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           style={styles.input}
         />
 
         <TextInput
           placeholder={t("auth.password")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           secureTextEntry
           style={styles.input}
         />
 
         <TextInput
           placeholder={t("auth.repeat_password")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           secureTextEntry
           style={styles.input}
         />
@@ -75,6 +76,7 @@ const createStyles = (theme: {
   accent: string;
   textPrimary: string;
   textSecondary: string;
+  textMuted: string;
   border: string;
 }) =>
   StyleSheet.create({
@@ -103,6 +105,8 @@ const createStyles = (theme: {
     backgroundColor: theme.cardBg,
     borderRadius: 30,
     padding: 25,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   input: {
     backgroundColor: theme.bg,
@@ -118,7 +122,7 @@ const createStyles = (theme: {
     color: theme.textSecondary,
   },
   link: {
-    color: "#4da6ff",
+    color: theme.accent,
     fontWeight: "bold",
   },
   button: {

@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../../../theme";
 
 type SimpleDatePickerProps = {
   label: string;
@@ -125,8 +126,7 @@ export default function NouvelleTacheScreen() {
     tacheDateFin?: string;
   }>();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
-  const isDark = true;
+  const { theme, isDark } = useAppTheme();
   const COLORS = useMemo(
     () => ({
       bg: theme.bg,

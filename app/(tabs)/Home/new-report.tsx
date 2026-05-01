@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../../../theme";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
 const T = {
@@ -132,8 +133,7 @@ export default function NewReportScreen() {
       description: t("new_report.other_desc"),
     },
   ];
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
-  const isDark = true;
+  const { theme, isDark } = useAppTheme();
   const [selectedType, setSelectedType] = useState<string>("progression");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");

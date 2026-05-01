@@ -11,21 +11,24 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppTheme, useAppTheme } from "../../../theme";
 
-const COLORS = {
-  bg: '#1a2332',
-  surface: '#1e2d3d',
-  card: '#243447',
-  border: '#2d4057',
-  accent: '#29b6f6',
-  text: '#ffffff',
-  textMuted: '#7a8fa0',
-  textDim: '#4a5a6a',
-  success: '#4caf50',
-  warning: '#ff9800',
-  danger: '#f44336',
-  pause: '#9c27b0',
-};
+const createColors = (theme: AppTheme) => ({
+  bg: theme.bg,
+  surface: theme.surface,
+  card: theme.cardBg,
+  border: theme.border,
+  accent: theme.accent,
+  text: theme.textPrimary,
+  textMuted: theme.textSecondary,
+  textDim: theme.textMuted,
+  success: theme.success,
+  warning: theme.warning,
+  danger: theme.danger,
+  pause: theme.pause,
+});
+
+type ProjectColors = ReturnType<typeof createColors>;
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type Project = {
@@ -42,13 +45,13 @@ type Project = {
 };
 
 // ─── BADGE PRIORITÉ ────────────────────────────────────────────────────────────
-const PrioriteBadge = ({ value }: { value: string }) => {
+const PrioriteBadge = ({ value, colors, badgeStyles }: { value: string; colors: ProjectColors; badgeStyles: ReturnType<typeof createBadgeStyles> }) => {
   const { t } = useTranslation();
   if (!value) return null;
   const map: Record<string, { label: string; color: string; icon: string }> = {
-    haute:   { label: t("tasks.priority_high"),   color: COLORS.danger,  icon: '🔴' },
-    moyenne: { label: t("tasks.priority_medium"), color: COLORS.warning, icon: '🟡' },
-    basse:   { label: t("tasks.priority_low"),   color: COLORS.success, icon: '🟢' },
+    haute:   { label: t("tasks.priority_high"),   color: colors.danger,  icon: '🔴' },
+    moyenne: { label: t("tasks.priority_medium"), color: colors.warning, icon: '🟡' },
+    basse:   { label: t("tasks.priority_low"),   color: colors.success, icon: '🟢' },
   };
   const p = map[value];
   if (!p) return null;
@@ -61,13 +64,13 @@ const PrioriteBadge = ({ value }: { value: string }) => {
 };
 
 // ─── BADGE STATUT ──────────────────────────────────────────────────────────────
-const StatutBadge = ({ value }: { value: string }) => {
+const StatutBadge = ({ value, colors, badgeStyles }: { value: string; colors: ProjectColors; badgeStyles: ReturnType<typeof createBadgeStyles> }) => {
   const { t } = useTranslation();
   if (!value) return null;
   const map: Record<string, { label: string; color: string; icon: string }> = {
-    actif:   { label: t("new_project.status_active"),    color: COLORS.success, icon: '▶' },
-    pause:   { label: t("new_project.status_paused"), color: COLORS.pause,   icon: '⏸' },
-    termine: { label: t("new_project.status_finished"),  color: COLORS.accent,  icon: '✓' },
+    actif:   { label: t("new_project.status_active"),    color: colors.success, icon: '▶' },
+    pause:   { label: t("new_project.status_paused"), color: colors.pause,   icon: '⏸' },
+    termine: { label: t("new_project.status_finished"),  color: colors.accent,  icon: '✓' },
   };
   const s = map[value];
   if (!s) return null;
@@ -78,7 +81,7 @@ const StatutBadge = ({ value }: { value: string }) => {
   );
 };
 
-const badgeStyles = StyleSheet.create({
+const createBadgeStyles = () => StyleSheet.create({
   badge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 3,
@@ -90,11 +93,21 @@ const badgeStyles = StyleSheet.create({
 });
 
 // ─── PROJECT CARD ──────────────────────────────────────────────────────────────
-const ProjectCard = ({ project }: { project: Project }) => (
+const ProjectCard = ({
+  project,
+  colors,
+  styles,
+  badgeStyles,
+}: {
+  project: Project;
+  colors: ProjectColors;
+  styles: ReturnType<typeof createStyles>;
+  badgeStyles: ReturnType<typeof createBadgeStyles>;
+}) => (
   <View style={styles.projectCard}>
     {/* Top row: icone + couleur + nom */}
     <View style={styles.cardHeader}>
-      <View style={[styles.cardIconBox, { backgroundColor: project.couleur || COLORS.border }]}>
+      <View style={[styles.cardIconBox, { backgroundColor: project.couleur || colors.border }]}>
         <Text style={styles.cardIconText}>{project.icone || '📁'}</Text>
       </View>
       <View style={{ flex: 1 }}>
@@ -125,8 +138,8 @@ const ProjectCard = ({ project }: { project: Project }) => (
     {/* Badges */}
     {(!!project.priorite || !!project.statut) && (
       <View style={styles.badgesRow}>
-        <PrioriteBadge value={project.priorite} />
-        <StatutBadge   value={project.statut}   />
+        <PrioriteBadge value={project.priorite} colors={colors} badgeStyles={badgeStyles} />
+        <StatutBadge value={project.statut} colors={colors} badgeStyles={badgeStyles} />
       </View>
     )}
   </View>
@@ -136,8 +149,10 @@ const ProjectCard = ({ project }: { project: Project }) => (
 export default function ProjetsScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
-  const isDark = true;
+  const { theme, isDark } = useAppTheme();
+  const COLORS = React.useMemo(() => createColors(theme), [theme]);
+  const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
+  const badgeStyles = React.useMemo(() => createBadgeStyles(), []);
   const params = useLocalSearchParams<{
     created?:            string;
     key?:                string;
@@ -280,7 +295,7 @@ export default function ProjetsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {filteredProjects.map((p) => (
-            <ProjectCard key={p.id} project={p} />
+            <ProjectCard key={p.id} project={p} colors={COLORS} styles={styles} badgeStyles={badgeStyles} />
           ))}
         </ScrollView>
       )}
@@ -297,7 +312,7 @@ export default function ProjetsScreen() {
 }
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const createStyles = (COLORS: ProjectColors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.bg },
 
   header: {

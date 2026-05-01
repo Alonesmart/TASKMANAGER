@@ -3,7 +3,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -20,16 +20,21 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppTheme, useAppTheme } from "../../../theme";
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
-const DARK_BG = "#0d1117";
-const CARD_BG = "#161b22";
-const ACCENT = "#3d8ef8";
-const ACCENT_SOFT = "#3d8ef822";
-const TEXT_PRIMARY = "#e6edf3";
-const TEXT_SECONDARY = "#7d8590";
-const BORDER = "#21262d";
-const SUCCESS = "#2ea043";
+const createMessageColors = (theme: AppTheme) => ({
+  bg: theme.bg,
+  card: theme.cardBg,
+  accent: theme.accent,
+  accentSoft: theme.accentSoft,
+  textPrimary: theme.textPrimary,
+  textSecondary: theme.textSecondary,
+  border: theme.border,
+  success: theme.success,
+  warning: theme.warning,
+});
+
+type MessageColors = ReturnType<typeof createMessageColors>;
 
 // ─── Mock contacts ─────────────────────────────────────────────────────────────
 const CONTACTS = [
@@ -53,13 +58,21 @@ type Attachment = {
   fileSize?: number;
 };
 
-const getPriorityBtnActiveStyle = (p: "normal" | "urgent"): ViewStyle => ({
-  backgroundColor: p === "urgent" ? "#ffa65722" : ACCENT_SOFT,
-  borderColor: p === "urgent" ? "#ffa657" : ACCENT,
+const getPriorityBtnActiveStyle = (p: "normal" | "urgent", colors: MessageColors): ViewStyle => ({
+  backgroundColor: p === "urgent" ? colors.warning + "22" : colors.accentSoft,
+  borderColor: p === "urgent" ? colors.warning : colors.accent,
 });
 
 // ─── Avatar ────────────────────────────────────────────────────────────────────
-function ContactAvatar({ contact, size = 40 }: { contact: Contact; size?: number }) {
+function ContactAvatar({
+  contact,
+  size = 40,
+  styles,
+}: {
+  contact: Contact;
+  size?: number;
+  styles: ReturnType<typeof createStyles>;
+}) {
   return (
     <View
       style={[
@@ -75,13 +88,23 @@ function ContactAvatar({ contact, size = 40 }: { contact: Contact; size?: number
 }
 
 // ─── Recipient chip ────────────────────────────────────────────────────────────
-function RecipientChip({ contact, onRemove }: { contact: Contact; onRemove: () => void }) {
+function RecipientChip({
+  contact,
+  onRemove,
+  styles,
+  colors,
+}: {
+  contact: Contact;
+  onRemove: () => void;
+  styles: ReturnType<typeof createStyles>;
+  colors: MessageColors;
+}) {
   return (
     <View style={styles.chip}>
       <View style={[styles.chipDot, { backgroundColor: contact.color }]} />
       <Text style={styles.chipText}>{contact.name.split(" ")[0]}</Text>
       <TouchableOpacity onPress={onRemove} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
-        <Ionicons name="close" size={13} color={TEXT_SECONDARY} />
+        <Ionicons name="close" size={13} color={colors.textSecondary} />
       </TouchableOpacity>
     </View>
   );
@@ -92,14 +115,16 @@ function ContactRow({
   contact,
   selected,
   onToggle,
+  styles,
 }: {
   contact: Contact;
   selected: boolean;
   onToggle: () => void;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
     <TouchableOpacity style={styles.contactRow} onPress={onToggle} activeOpacity={0.7}>
-      <ContactAvatar contact={contact} />
+      <ContactAvatar contact={contact} styles={styles} />
       <View style={styles.contactInfo}>
         <Text style={styles.contactName}>{contact.name}</Text>
         <Text style={styles.contactRole}>{contact.role}</Text>
@@ -114,6 +139,9 @@ function ContactRow({
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 export default function NewMessageScreen() {
   const router = useRouter();
+  const { theme, isDark } = useAppTheme();
+  const colors = useMemo(() => createMessageColors(theme), [theme]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -241,12 +269,12 @@ export default function NewMessageScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={DARK_BG} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.bg} />
 
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBack} onPress={goBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={20} color={TEXT_PRIMARY} />
+          <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Nouveau message</Text>
@@ -282,18 +310,18 @@ export default function NewMessageScreen() {
         <View style={{ flex: 1 }}>
           {/* Search bar */}
           <View style={styles.searchBar}>
-            <Ionicons name="search" size={16} color={TEXT_SECONDARY} />
+            <Ionicons name="search" size={16} color={colors.textSecondary} />
             <TextInput
               style={styles.searchInput}
               placeholder="Rechercher un contact..."
-              placeholderTextColor={TEXT_SECONDARY}
+              placeholderTextColor={colors.textSecondary}
               value={search}
               onChangeText={setSearch}
               autoCorrect={false}
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={16} color={TEXT_SECONDARY} />
+                <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             )}
           </View>
@@ -307,7 +335,7 @@ export default function NewMessageScreen() {
               contentContainerStyle={{ paddingHorizontal: 16, gap: 8, paddingVertical: 4 }}
             >
               {recipients.map((r) => (
-                <RecipientChip key={r.id} contact={r} onRemove={() => toggleRecipient(r)} />
+                <RecipientChip key={r.id} contact={r} onRemove={() => toggleRecipient(r)} styles={styles} colors={colors} />
               ))}
             </ScrollView>
           )}
@@ -328,11 +356,12 @@ export default function NewMessageScreen() {
                 contact={item}
                 selected={!!recipients.find((r) => r.id === item.id)}
                 onToggle={() => toggleRecipient(item)}
+                styles={styles}
               />
             )}
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Ionicons name="person-outline" size={32} color={TEXT_SECONDARY} />
+                <Ionicons name="person-outline" size={32} color={colors.textSecondary} />
                 <Text style={styles.emptyText}>Aucun contact trouvé</Text>
               </View>
             }
@@ -376,7 +405,7 @@ export default function NewMessageScreen() {
                 {(["normal", "urgent"] as const).map((p) => (
                   <TouchableOpacity
                     key={p}
-                    style={[styles.priorityBtn, priority === p && getPriorityBtnActiveStyle(p)]}
+                    style={[styles.priorityBtn, priority === p && getPriorityBtnActiveStyle(p, colors)]}
                     onPress={() => setPriority(p)}
                     activeOpacity={0.8}
                   >
@@ -384,13 +413,13 @@ export default function NewMessageScreen() {
                       name={p === "urgent" ? "warning-outline" : "checkmark-circle-outline"}
                       size={13}
                       color={
-                        priority === p ? (p === "urgent" ? "#ffa657" : ACCENT) : TEXT_SECONDARY
+                        priority === p ? (p === "urgent" ? colors.warning : colors.accent) : colors.textSecondary
                       }
                     />
                     <Text
                       style={[
                         styles.priorityBtnText,
-                        priority === p && { color: p === "urgent" ? "#ffa657" : ACCENT },
+                        priority === p && { color: p === "urgent" ? colors.warning : colors.accent },
                       ]}
                     >
                       {p === "normal" ? "Normal" : "Urgent"}
@@ -408,7 +437,7 @@ export default function NewMessageScreen() {
               <TextInput
                 style={styles.subjectInput}
                 placeholder="Titre du message..."
-                placeholderTextColor={TEXT_SECONDARY}
+                placeholderTextColor={colors.textSecondary}
                 value={subject}
                 onChangeText={setSubject}
                 maxLength={80}
@@ -422,7 +451,7 @@ export default function NewMessageScreen() {
               <TextInput
                 style={styles.bodyInput}
                 placeholder="Rédigez votre message ici..."
-                placeholderTextColor={TEXT_SECONDARY}
+                placeholderTextColor={colors.textSecondary}
                 value={body}
                 onChangeText={setBody}
                 multiline
@@ -441,7 +470,7 @@ export default function NewMessageScreen() {
                   { icon: "link-outline", label: "Lien", onPress: () => setShowLinkInput((prev) => !prev) },
                 ].map((a) => (
                   <TouchableOpacity key={a.label} style={styles.attachBtn} activeOpacity={0.7} onPress={a.onPress}>
-                    <Ionicons name={a.icon as any} size={16} color={ACCENT} />
+                    <Ionicons name={a.icon as any} size={16} color={colors.accent} />
                     <Text style={styles.attachBtnText}>{a.label}</Text>
                   </TouchableOpacity>
                 ))}
@@ -452,7 +481,7 @@ export default function NewMessageScreen() {
                   <TextInput
                     style={styles.linkInput}
                     placeholder="https://exemple.com"
-                    placeholderTextColor={TEXT_SECONDARY}
+                    placeholderTextColor={colors.textSecondary}
                     value={linkInput}
                     onChangeText={setLinkInput}
                     autoCapitalize="none"
@@ -498,7 +527,7 @@ export default function NewMessageScreen() {
                             <Ionicons
                               name={file.kind === "file" ? "document-outline" : "link-outline"}
                               size={14}
-                              color={ACCENT}
+                              color={colors.accent}
                             />
                           </View>
                         )}
@@ -507,7 +536,7 @@ export default function NewMessageScreen() {
                         </Text>
                       </View>
                       <TouchableOpacity onPress={() => removeAttachment(file.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Ionicons name="close-circle" size={16} color={TEXT_SECONDARY} />
+                        <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -522,8 +551,8 @@ export default function NewMessageScreen() {
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: DARK_BG },
+const createStyles = (colors: MessageColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
 
   // Header
   header: {
@@ -531,50 +560,50 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
+    borderBottomColor: colors.border,
     gap: 12,
   },
   headerBack: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: DARK_BG,
+    backgroundColor: colors.bg,
     alignItems: "center",
     justifyContent: "center",
   },
   headerCenter: { flex: 1 },
-  headerTitle: { color: TEXT_PRIMARY, fontSize: 15, fontWeight: "700" },
-  headerSub: { color: TEXT_SECONDARY, fontSize: 12, marginTop: 1 },
+  headerTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "700" },
+  headerSub: { color: colors.textSecondary, fontSize: 12, marginTop: 1 },
   nextBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: ACCENT,
+    backgroundColor: colors.accent,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
   },
-  nextBtnDisabled: { backgroundColor: BORDER },
+  nextBtnDisabled: { backgroundColor: colors.border },
   nextBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
   sendBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: SUCCESS,
+    backgroundColor: colors.success,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
   },
-  sendBtnDisabled: { backgroundColor: BORDER },
+  sendBtnDisabled: { backgroundColor: colors.border },
   sendBtnText: { color: "#fff", fontSize: 13, fontWeight: "600" },
 
   // Search
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     marginHorizontal: 16,
     marginTop: 14,
     marginBottom: 4,
@@ -582,30 +611,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     gap: 10,
   },
-  searchInput: { flex: 1, color: TEXT_PRIMARY, fontSize: 14 },
+  searchInput: { flex: 1, color: colors.textPrimary, fontSize: 14 },
 
   // Chips
   chipsRow: { maxHeight: 44, marginTop: 8 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: ACCENT_SOFT,
+    backgroundColor: colors.accentSoft,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 6,
     gap: 6,
     borderWidth: 1,
-    borderColor: ACCENT + "44",
+    borderColor: colors.accent + "44",
   },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
-  chipText: { color: ACCENT, fontSize: 12, fontWeight: "600" },
+  chipText: { color: colors.accent, fontSize: 12, fontWeight: "600" },
 
   // List
   listHeader: {
-    color: TEXT_SECONDARY,
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.1,
@@ -615,33 +644,33 @@ const styles = StyleSheet.create({
   contactRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     gap: 12,
   },
   contactAvatar: { alignItems: "center", justifyContent: "center" },
   contactAvatarText: { fontWeight: "700" },
   contactInfo: { flex: 1 },
-  contactName: { color: TEXT_PRIMARY, fontSize: 14, fontWeight: "600" },
-  contactRole: { color: TEXT_SECONDARY, fontSize: 12, marginTop: 2 },
+  contactName: { color: colors.textPrimary, fontSize: 14, fontWeight: "600" },
+  contactRole: { color: colors.textSecondary, fontSize: 12, marginTop: 2 },
   checkbox: {
     width: 22,
     height: 22,
     borderRadius: 6,
     borderWidth: 1.5,
-    borderColor: BORDER,
+    borderColor: colors.border,
     alignItems: "center",
     justifyContent: "center",
   },
-  checkboxActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  checkboxActive: { backgroundColor: colors.accent, borderColor: colors.accent },
 
   // Empty
   emptyState: { alignItems: "center", paddingTop: 40, gap: 10 },
-  emptyText: { color: TEXT_SECONDARY, fontSize: 14 },
+  emptyText: { color: colors.textSecondary, fontSize: 14 },
 
   // Compose
   composeContent: { paddingBottom: 40 },
@@ -652,22 +681,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 10,
   },
-  toLabel: { color: TEXT_SECONDARY, fontSize: 13, fontWeight: "600", width: 28 },
+  toLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: "600", width: 28 },
   toChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
     gap: 6,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
   },
   toChipDot: { width: 7, height: 7, borderRadius: 3.5 },
-  toChipText: { color: TEXT_PRIMARY, fontSize: 12, fontWeight: "500" },
+  toChipText: { color: colors.textPrimary, fontSize: 12, fontWeight: "500" },
 
-  divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 16 },
+  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 16 },
 
   priorityRow: {
     flexDirection: "row",
@@ -676,7 +705,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
   },
-  fieldLabel: { color: TEXT_SECONDARY, fontSize: 13, fontWeight: "600", width: 50 },
+  fieldLabel: { color: colors.textSecondary, fontSize: 13, fontWeight: "600", width: 50 },
   priorityToggle: { flexDirection: "row", gap: 8 },
   priorityBtn: {
     flexDirection: "row",
@@ -685,10 +714,10 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     gap: 5,
   },
-  priorityBtnText: { color: TEXT_SECONDARY, fontSize: 12, fontWeight: "500" },
+  priorityBtnText: { color: colors.textSecondary, fontSize: 12, fontWeight: "500" },
 
   fieldRow: {
     flexDirection: "row",
@@ -697,28 +726,28 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     gap: 12,
   },
-  subjectInput: { flex: 1, color: TEXT_PRIMARY, fontSize: 15, fontWeight: "500" },
+  subjectInput: { flex: 1, color: colors.textPrimary, fontSize: 15, fontWeight: "500" },
 
   bodyContainer: { paddingHorizontal: 16, paddingTop: 16 },
   bodyInput: {
-    color: TEXT_PRIMARY,
+    color: colors.textPrimary,
     fontSize: 14,
     lineHeight: 22,
     minHeight: 200,
   },
-  charCount: { color: TEXT_SECONDARY, fontSize: 11, textAlign: "right", marginTop: 8 },
+  charCount: { color: colors.textSecondary, fontSize: 11, textAlign: "right", marginTop: 8 },
 
   attachBar: {
     marginHorizontal: 16,
     marginTop: 20,
-    backgroundColor: CARD_BG,
+    backgroundColor: colors.card,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     padding: 14,
   },
   attachLabel: {
-    color: TEXT_SECONDARY,
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1,
@@ -730,28 +759,28 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: ACCENT_SOFT,
+    backgroundColor: colors.accentSoft,
     borderRadius: 10,
     paddingVertical: 10,
     gap: 6,
     borderWidth: 1,
-    borderColor: ACCENT + "33",
+    borderColor: colors.accent + "33",
   },
-  attachBtnText: { color: ACCENT, fontSize: 12, fontWeight: "600" },
+  attachBtnText: { color: colors.accent, fontSize: 12, fontWeight: "600" },
   linkInputWrap: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     borderRadius: 10,
     padding: 10,
-    backgroundColor: DARK_BG,
+    backgroundColor: colors.bg,
     gap: 10,
   },
   linkInput: {
-    color: TEXT_PRIMARY,
+    color: colors.textPrimary,
     fontSize: 13,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
@@ -768,20 +797,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   linkCancelBtn: {
-    borderColor: BORDER,
-    backgroundColor: CARD_BG,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   linkAddBtn: {
-    borderColor: ACCENT,
-    backgroundColor: ACCENT_SOFT,
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
   },
   linkCancelText: {
-    color: TEXT_SECONDARY,
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: "600",
   },
   linkAddText: {
-    color: ACCENT,
+    color: colors.accent,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -794,10 +823,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: DARK_BG,
+    backgroundColor: colors.bg,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: BORDER,
+    borderColor: colors.border,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 8,
@@ -813,21 +842,21 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD_BG,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
   },
   attachmentIconWrap: {
     width: 28,
     height: 28,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: CARD_BG,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     alignItems: "center",
     justifyContent: "center",
   },
   attachmentName: {
-    color: TEXT_PRIMARY,
+    color: colors.textPrimary,
     fontSize: 12,
     flex: 1,
   },

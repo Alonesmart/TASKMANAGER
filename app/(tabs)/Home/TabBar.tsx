@@ -3,16 +3,7 @@ import { Tabs } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, Text, View } from "react-native";
-
-// ─── Theme ─────────────────────────────────────────────────────────────────────
-const T = {
-  bg: "#080c12",
-  bar: "#0d1520",
-  barBorder: "#1a2535",
-  accent: "#3d8ef8",
-  inactive: "#334155",
-  activeBg: "#3d8ef814",
-};
+import { useAppTheme } from "../../../theme";
 
 // ─── Tab Icon ──────────────────────────────────────────────────────────────────
 type TabIconProps = {
@@ -22,48 +13,52 @@ type TabIconProps = {
   color: string;
 };
 
-const TabIcon = ({ icon, label, focused, color }: TabIconProps) => (
-  <View style={styles.wrapper}>
-    <View
-      style={[
-        styles.iconWrap,
-        focused && { backgroundColor: T.activeBg, borderColor: color + "30" },
-      ]}
-    >
-      {/* Top glow pill */}
-      {focused && <View style={[styles.topPill, { backgroundColor: color }]} />}
-      {icon}
+const TabIcon = ({ icon, label, focused, color }: TabIconProps) => {
+  const { theme } = useAppTheme();
+
+  return (
+    <View style={styles.wrapper}>
+      <View
+        style={[
+          styles.iconWrap,
+          focused && { backgroundColor: theme.activeBg, borderColor: color + "30" },
+        ]}
+      >
+        {focused && <View style={[styles.topPill, { backgroundColor: color }]} />}
+        {icon}
+      </View>
+      <Text
+        style={[
+          styles.label,
+          { color: focused ? color : theme.inactive },
+          focused && styles.labelActive,
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
     </View>
-    <Text
-      style={[
-        styles.label,
-        { color: focused ? color : T.inactive },
-        focused && styles.labelActive,
-      ]}
-      numberOfLines={1}
-    >
-      {label}
-    </Text>
-  </View>
-);
+  );
+};
 
 // ─── Layout ────────────────────────────────────────────────────────────────────
 export default function TabsLayout() {
   const { t } = useTranslation();
+  const { theme } = useAppTheme();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: T.accent,
-        tabBarInactiveTintColor: T.inactive,
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: theme.inactive,
         tabBarShowLabel: false,
         tabBarItemStyle: { flex: 1 },
         tabBarStyle: {
-          backgroundColor: T.bar,
+          backgroundColor: theme.bar,
           height: Platform.OS === "ios" ? 82 : 66,
           borderTopWidth: 1,
-          borderTopColor: T.barBorder,
+          borderTopColor: theme.barBorder,
           paddingBottom: 0,
           paddingTop: 0,
           elevation: 0,

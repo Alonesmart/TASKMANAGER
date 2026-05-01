@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
 import { useTranslation } from "react-i18next";
+import { useAppTheme } from "../../../theme";
 
 type SimpleDatePickerProps = {
   label: string;
@@ -22,6 +23,15 @@ type SimpleDatePickerProps = {
   colors: any;
   t: (key: string, options?: any) => any;
 };
+
+type ProjectManager = {
+  id: string;
+  nom: string;
+  initiale: string;
+};
+
+type ProjectPriority = 'haute' | 'moyenne' | 'basse';
+type ProjectStatus = 'actif' | 'pause' | 'termine';
 
 // ─── SIMPLE DATE PICKER ────────────────────────────────────────────────────────
 const SimpleDatePicker = ({ label, value, onChange, styles, colors, t }: SimpleDatePickerProps) => {
@@ -122,8 +132,7 @@ const SimpleDatePicker = ({ label, value, onChange, styles, colors, t }: SimpleD
 export default function NouveauProjetScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
-  const isDark = true;
+  const { theme, isDark } = useAppTheme();
   const COLORS = useMemo(
     () => ({
       bg: theme.bg,
@@ -145,27 +154,27 @@ export default function NouveauProjetScreen() {
 
   const [nom, setNom]                 = useState('');
   const [description, setDescription] = useState('');
-  const [membres, setMembres]         = useState([]);
-  const [dateDebut, setDateDebut]     = useState(null);
-  const [dateFin, setDateFin]         = useState(null);
-  const [priorite, setPriorite]       = useState(null);
-  const [statut, setStatut]           = useState(null);
-  const [chef, setChef]               = useState(null);
-  const [couleur, setCouleur]         = useState(null);
-  const [icone, setIcone]             = useState(null);
+  const [membres, setMembres]         = useState<string[]>([]);
+  const [dateDebut, setDateDebut]     = useState<Date | null>(null);
+  const [dateFin, setDateFin]         = useState<Date | null>(null);
+  const [priorite, setPriorite]       = useState<ProjectPriority | null>(null);
+  const [statut, setStatut]           = useState<ProjectStatus | null>(null);
+  const [chef, setChef]               = useState<ProjectManager | null>(null);
+  const [couleur, setCouleur]         = useState<string | null>(null);
+  const [icone, setIcone]             = useState<string | null>(null);
   const [chefModal, setChefModal]     = useState(false);
 
   const priorites = [
     { key: 'haute',   label: t("new_project.priority_high"),   color: COLORS.danger,  icon: '🔴' },
     { key: 'moyenne', label: t("new_project.priority_medium"), color: COLORS.warning, icon: '🟡' },
     { key: 'basse',   label: t("new_project.priority_low"),   color: COLORS.success, icon: '🟢' },
-  ];
+  ] as const;
 
   const statuts = [
     { key: 'actif',   label: t("new_project.status_active"),    color: COLORS.success, icon: '▶' },
     { key: 'pause',   label: t("new_project.status_paused"), color: COLORS.pause,   icon: '⏸' },
     { key: 'termine', label: t("new_project.status_finished"),  color: COLORS.accent,  icon: '✓' },
-  ];
+  ] as const;
 
   const chefsList = [
     { id: '1', nom: 'Alice Martin',  initiale: 'A' },
@@ -174,7 +183,7 @@ export default function NouveauProjetScreen() {
     { id: '4', nom: 'David Leroy',   initiale: 'D' },
   ];
 
-const formatDate = (d?: Date) =>
+const formatDate = (d: Date | null) =>
   d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "";
 
   // ── Sauvegarder → retour vers ProjetsScreen avec les données en params ──────

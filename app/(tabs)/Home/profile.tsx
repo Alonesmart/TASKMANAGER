@@ -12,28 +12,17 @@ import {
 import { Card, Divider, List, Switch } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setAppLanguage } from "../../i18n";
+import { useAppTheme } from "../../../theme";
 
 const LANGUAGES = [
   { code: "fr", label: "Français" },
   { code: "en", label: "English" },
 ] as const;
 
-const THEME = {
-  bg: "#0d1117",
-  cardBg: "#161b22",
-  accent: "#3d8ef8",
-  textPrimary: "#e6edf3",
-  textSecondary: "#7d8590",
-  border: "#21262d",
-  logoutColor: "#f85030",
-};
-
 export default function ProfileScreen() {
   const router = useRouter();
   const { t, i18n: i18nInstance } = useTranslation();
-  const theme = THEME;
-  const [themeMode, setThemeMode] = useState<"light" | "dark" | "system">("dark");
-  const isDark = true;
+  const { theme, mode: themeMode, setMode: setThemeMode, isDark } = useAppTheme();
   const [showLanguageOptions, setShowLanguageOptions] = useState(false);
   const styles = useMemo(() => createStyles(theme), [theme]);
   const selectedLanguage: (typeof LANGUAGES)[number]["code"] =
@@ -81,7 +70,7 @@ export default function ProfileScreen() {
               description={themeMode === "dark" ? t("profile.active") : undefined}
               left={(props) => <List.Icon {...props} icon="moon-waning-crescent" color={theme.accent} />}
               right={() => (
-                <Switch value={themeMode === "dark"} onValueChange={() => setThemeMode((prev) => (prev === "dark" ? "light" : "dark"))} />
+                <Switch value={isDark} onValueChange={() => setThemeMode(isDark ? "light" : "dark")} />
               )}
             />
             <Divider />

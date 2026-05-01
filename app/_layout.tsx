@@ -1,17 +1,23 @@
 import React from "react";
 import { Stack } from "expo-router";
-import { MD3DarkTheme, PaperProvider } from "react-native-paper";
+import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
+import { AppThemeProvider, useAppTheme } from "../theme";
 
 import "./i18n";
 
-export default function RootLayout() {
+function RootLayoutContent() {
+  const { theme, isDark } = useAppTheme();
+  const basePaperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
   const paperTheme = {
-    ...MD3DarkTheme,
+    ...basePaperTheme,
     colors: {
-      ...MD3DarkTheme.colors,
-      primary: "#3d8ef8",
-      background: "#0d1117",
-      surface: "#161b22",
+      ...basePaperTheme.colors,
+      primary: theme.accent,
+      background: theme.bg,
+      surface: theme.cardBg,
+      onSurface: theme.textPrimary,
+      onBackground: theme.textPrimary,
+      outline: theme.border,
     },
   };
 
@@ -19,5 +25,13 @@ export default function RootLayout() {
     <PaperProvider theme={paperTheme}>
       <Stack screenOptions={{ headerShown: false }} />
     </PaperProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AppThemeProvider>
+      <RootLayoutContent />
+    </AppThemeProvider>
   );
 }

@@ -1,8 +1,8 @@
 import { Stack } from "expo-router";
+import { useAppTheme } from "../../../theme";
 
 export default function RootLayout() {
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
-  const isDark = true;
+  const { theme, isDark } = useAppTheme();
 
   return (
     <Stack

@@ -13,18 +13,39 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { AppTheme, useAppTheme } from "../../../theme";
 
 const { width } = Dimensions.get("window");
 
-// ─── Theme ─────────────────────────────────────────────────────────────────────
-const T = {
-  bg: "#080c12",
-  surface: "#0f1520",
-  card: "#141c28",
-  cardBorder: "#1e2d42",
-  accent: "#3d8ef8",
-  accentGlow: "#3d8ef820",
-  accentDim: "#3d8ef840",
+type HomePalette = {
+  bg: string;
+  surface: string;
+  card: string;
+  cardBorder: string;
+  accent: string;
+  accentGlow: string;
+  accentDim: string;
+  green: string;
+  greenDim: string;
+  orange: string;
+  orangeDim: string;
+  red: string;
+  redDim: string;
+  purple: string;
+  purpleDim: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+};
+
+const createPalette = (theme: AppTheme): HomePalette => ({
+  bg: theme.bg,
+  surface: theme.surface,
+  card: theme.cardBg,
+  cardBorder: theme.border,
+  accent: theme.accent,
+  accentGlow: theme.accentGlow,
+  accentDim: theme.accentDim,
   green: "#2dd4a0",
   greenDim: "#2dd4a015",
   orange: "#ff9f43",
@@ -33,10 +54,10 @@ const T = {
   redDim: "#ff6b6b15",
   purple: "#a78bfa",
   purpleDim: "#a78bfa15",
-  textPrimary: "#eef2ff",
-  textSecondary: "#5a7196",
-  textMuted: "#2e4060",
-};
+  textPrimary: theme.textPrimary,
+  textSecondary: theme.textSecondary,
+  textMuted: theme.textMuted,
+});
 
 // ─── Animated Card ─────────────────────────────────────────────────────────────
 function AnimatedCard({
@@ -81,39 +102,23 @@ function StatPill({
   value,
   label,
   color,
+  styles,
 }: {
   value: number;
   label: string;
   color: string;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
-    <View style={statStyles.pill}>
-      <View style={[statStyles.dot, { backgroundColor: color }]} />
+    <View style={styles.pill}>
+      <View style={[styles.dot, { backgroundColor: color }]} />
       <View>
-        <Text style={[statStyles.value, { color }]}>{value}</Text>
-        <Text style={statStyles.label}>{label}</Text>
+        <Text style={[styles.value, { color }]}>{value}</Text>
+        <Text style={styles.label}>{label}</Text>
       </View>
     </View>
   );
 }
-
-const statStyles = StyleSheet.create({
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: T.surface,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: T.cardBorder,
-    flex: 1,
-  },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  value: { fontSize: 18, fontWeight: "800" },
-  label: { color: T.textSecondary, fontSize: 10, marginTop: 1 },
-});
 
 // ─── Overview Card ──────────────────────────────────────────────────────────────
 type CardConfig = {
@@ -124,69 +129,37 @@ type CardConfig = {
   count: number;
 };
 
-function OverviewCard({ card }: { card: CardConfig }) {
+function OverviewCard({ card, styles }: { card: CardConfig; styles: ReturnType<typeof createStyles> }) {
   return (
     <View
       style={[
-        overviewStyles.card,
+        styles.card,
         { borderColor: card.color + "30" },
       ]}
     >
       {/* Subtle glow background */}
       <View
         style={[
-          overviewStyles.glow,
+          styles.glow,
           { backgroundColor: card.dimColor },
         ]}
       />
       <View
         style={[
-          overviewStyles.iconWrap,
+          styles.iconWrap,
           { backgroundColor: card.color + "20", borderColor: card.color + "40" },
         ]}
       >
         <MaterialIcons name={card.icon} size={18} color={card.color} />
       </View>
-      <Text style={[overviewStyles.count, { color: card.color }]}>{card.count}</Text>
-      <Text style={overviewStyles.title}>{card.title}</Text>
+      <Text style={[styles.count, { color: card.color }]}>{card.count}</Text>
+      <Text style={styles.title}>{card.title}</Text>
     </View>
   );
 }
 
-const overviewStyles = StyleSheet.create({
-  card: {
-    width: (width - 48) / 2,
-    backgroundColor: T.card,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    overflow: "hidden",
-    position: "relative",
-  },
-  glow: {
-    position: "absolute",
-    top: -20,
-    right: -20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
-  iconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-    borderWidth: 1,
-  },
-  count: { fontSize: 26, fontWeight: "800", marginBottom: 4 },
-  title: { color: T.textSecondary, fontSize: 12, lineHeight: 16 },
-});
-
 // ─── Progress Arc ───────────────────────────────────────────────────────────────
-function ProgressBar({ percent }: { percent: number }) {
+function ProgressBar({ percent, styles }: { percent: number; styles: ReturnType<typeof createStyles> }) {
   const width = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -199,10 +172,10 @@ function ProgressBar({ percent }: { percent: number }) {
   }, []);
 
   return (
-    <View style={progressStyles.track}>
+    <View style={styles.track}>
       <Animated.View
         style={[
-          progressStyles.fill,
+          styles.fill,
           {
             width: width.interpolate({
               inputRange: [0, 100],
@@ -211,34 +184,10 @@ function ProgressBar({ percent }: { percent: number }) {
           },
         ]}
       />
-      <View style={progressStyles.shine} />
+      <View style={styles.shine} />
     </View>
   );
 }
-
-const progressStyles = StyleSheet.create({
-  track: {
-    height: 6,
-    backgroundColor: T.textMuted,
-    borderRadius: 4,
-    overflow: "hidden",
-    position: "relative",
-  },
-  fill: {
-    height: "100%",
-    backgroundColor: T.accent,
-    borderRadius: 4,
-  },
-  shine: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "50%",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 4,
-  },
-});
 
 // ─── Quick Action ───────────────────────────────────────────────────────────────
 function QuickAction({
@@ -246,39 +195,31 @@ function QuickAction({
   label,
   color,
   onPress,
+  styles,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   color: string;
   onPress?: () => void;
+  styles: ReturnType<typeof createStyles>;
 }) {
   return (
-    <TouchableOpacity style={qaStyles.btn} onPress={onPress} activeOpacity={0.75}>
-      <View style={[qaStyles.icon, { backgroundColor: color + "18", borderColor: color + "35" }]}>
+    <TouchableOpacity style={styles.btn} onPress={onPress} activeOpacity={0.75}>
+      <View style={[styles.icon, { backgroundColor: color + "18", borderColor: color + "35" }]}>
         <Ionicons name={icon} size={20} color={color} />
       </View>
-      <Text style={qaStyles.label}>{label}</Text>
+      <Text style={styles.label}>{label}</Text>
     </TouchableOpacity>
   );
 }
-
-const qaStyles = StyleSheet.create({
-  btn: { alignItems: "center", gap: 7, flex: 1 },
-  icon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-  label: { color: T.textSecondary, fontSize: 11, textAlign: "center" },
-});
 
 // ─── Main Screen ────────────────────────────────────────────────────────────────
 export default function Home() {
   const router = useRouter();
   const { t } = useTranslation();
+  const { theme, isDark } = useAppTheme();
+  const T = useMemo(() => createPalette(theme), [theme]);
+  const styles = useMemo(() => createStyles(T), [T]);
 
   const cards: CardConfig[] = [
     { title: t("home.my_tasks"), icon: "check-circle", color: T.accent, dimColor: T.accentGlow, count: 0 },
@@ -289,7 +230,7 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={T.bg} />
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={T.bg} />
       <SafeAreaView style={{ flex: 1 }}>
         <ScrollView
           showsVerticalScrollIndicator={false}
@@ -321,21 +262,21 @@ export default function Home() {
               <View style={styles.progressTop}>
                 <View>
                   <Text style={styles.progressLabel}>{t("home.global_progress")}</Text>
-                  <Text style={styles.progressSub}>Mis à jour aujourd'hui</Text>
+                  <Text style={styles.progressSub}>{"Mis à jour aujourd'hui"}</Text>
                 </View>
                 <View style={styles.percentBadge}>
                   <Text style={styles.percentText}>0%</Text>
                 </View>
               </View>
 
-              <ProgressBar percent={0} />
+              <ProgressBar percent={0} styles={styles} />
 
               <View style={styles.statsRow}>
-                <StatPill value={0} label={t("home.completed")} color={T.green} />
+                <StatPill value={0} label={t("home.completed")} color={T.green} styles={styles} />
                 <View style={{ width: 8 }} />
-                <StatPill value={0} label={t("home.in_progress")} color={T.orange} />
+                <StatPill value={0} label={t("home.in_progress")} color={T.orange} styles={styles} />
                 <View style={{ width: 8 }} />
-                <StatPill value={0} label={t("home.todo")} color={T.accent} />
+                <StatPill value={0} label={t("home.todo")} color={T.accent} styles={styles} />
               </View>
             </View>
           </AnimatedCard>
@@ -350,24 +291,28 @@ export default function Home() {
                   label="Nouvelle tâche"
                   color={T.accent}
                   onPress={() => router.push("/(tabs)/Home/tasks")}
+                  styles={styles}
                 />
                 <QuickAction
                   icon="chatbubble-outline"
                   label="Message"
                   color={T.purple}
                   onPress={() => router.push("/(tabs)/Home/new-message")}
+                  styles={styles}
                 />
                 <QuickAction
                   icon="folder-open-outline"
                   label="Projet"
                   color={T.green}
                   onPress={() => router.push("/(tabs)/Home/new-projet")}
+                  styles={styles}
                 />
                 <QuickAction
                   icon="document-text-outline"
                   label="Rapport"
                   color={T.orange}
                   onPress={() => router.push("/(tabs)/Home/new-report")}
+                  styles={styles}
                 />
               </View>
             </View>
@@ -379,7 +324,7 @@ export default function Home() {
               <Text style={styles.sectionTitle}>{t("home.overview")}</Text>
               <View style={styles.grid}>
                 {cards.map((card, i) => (
-                  <OverviewCard key={i} card={card} />
+                  <OverviewCard key={i} card={card} styles={styles} />
                 ))}
               </View>
             </View>
@@ -435,9 +380,83 @@ export default function Home() {
 }
 
 // ─── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
+const createStyles = (T: HomePalette) => StyleSheet.create({
   container: { flex: 1, backgroundColor: T.bg },
   scroll: { paddingHorizontal: 16, paddingTop: 8 },
+  pill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: T.surface,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: T.cardBorder,
+    flex: 1,
+  },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  value: { fontSize: 18, fontWeight: "800" },
+  label: { color: T.textSecondary, fontSize: 11, marginTop: 1, textAlign: "center" },
+  card: {
+    width: (width - 48) / 2,
+    backgroundColor: T.card,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    overflow: "hidden",
+    position: "relative",
+  },
+  glow: {
+    position: "absolute",
+    top: -20,
+    right: -20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  iconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+  },
+  count: { fontSize: 26, fontWeight: "800", marginBottom: 4 },
+  title: { color: T.textSecondary, fontSize: 12, lineHeight: 16 },
+  track: {
+    height: 6,
+    backgroundColor: T.textMuted,
+    borderRadius: 4,
+    overflow: "hidden",
+    position: "relative",
+  },
+  fill: {
+    height: "100%",
+    backgroundColor: T.accent,
+    borderRadius: 4,
+  },
+  shine: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 4,
+  },
+  btn: { alignItems: "center", gap: 7, flex: 1 },
+  icon: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
 
   // Header
   header: {

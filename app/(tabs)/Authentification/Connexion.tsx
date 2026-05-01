@@ -10,11 +10,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, FontAwesome, AntDesign } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useAppTheme } from "../../../theme";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
+  const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
     <View style={styles.container}>
@@ -37,21 +38,21 @@ export default function LoginScreen() {
         <View style={styles.inputContainer}>
           <TextInput
             placeholder={t("auth.username")}
-            placeholderTextColor="#aaa"
+            placeholderTextColor={theme.textMuted}
             style={styles.input}
           />
-          <Ionicons name="person-circle-outline" size={22} color="#000" />
+          <Ionicons name="person-circle-outline" size={22} color={theme.textSecondary} />
         </View>
 
         {/* Password */}
         <View style={styles.inputContainer}>
           <TextInput
             placeholder={t("auth.password")}
-            placeholderTextColor="#aaa"
+            placeholderTextColor={theme.textMuted}
             secureTextEntry
             style={styles.input}
           />
-          <Ionicons name="lock-closed-outline" size={20} color="#000" />
+          <Ionicons name="lock-closed-outline" size={20} color={theme.textSecondary} />
         </View>
 
         {/* Links */}
@@ -59,7 +60,7 @@ export default function LoginScreen() {
         {/* //< Text style={styles.signup}></Text> */}
        <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/RegisterScreen")}>
   <Text style={styles.signup}>
-    {t("auth.no_account")} <Text style={{ color: "#4da6ff" }}>{t("auth.sign_up")}</Text>
+    {t("auth.no_account")} <Text style={{ color: theme.accent }}>{t("auth.sign_up")}</Text>
   </Text>
 </TouchableOpacity>
 
@@ -84,6 +85,8 @@ const createStyles = (theme: {
   cardBg: string;
   accent: string;
   textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
   border: string;
 }) =>
   StyleSheet.create({
@@ -115,6 +118,8 @@ const createStyles = (theme: {
     backgroundColor: theme.cardBg,
     borderRadius: 25,
     padding: 20,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
 
   inputContainer: {
@@ -133,12 +138,12 @@ const createStyles = (theme: {
   },
 
   forgot: {
-    color: "#4da6ff",
+    color: theme.accent,
     marginBottom: 5,
   },
 
   signup: {
-    color: theme.textPrimary,
+    color: theme.textSecondary,
     marginBottom: 20,
   },
 

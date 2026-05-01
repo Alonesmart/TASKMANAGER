@@ -11,11 +11,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppTheme } from "../../../theme";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
+  const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (

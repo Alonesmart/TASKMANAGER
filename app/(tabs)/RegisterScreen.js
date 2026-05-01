@@ -1,13 +1,16 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome, AntDesign } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
+import { useAppTheme } from "../../theme";
 
 export default function RegisterScreen() {
     const router = useRouter();
     const { t } = useTranslation();
+    const { theme } = useAppTheme();
+    const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <View style={styles.container}>
@@ -26,26 +29,26 @@ export default function RegisterScreen() {
 
         <TextInput
           placeholder={t("auth.name")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           style={styles.input}
         />
 
         <TextInput
           placeholder={t("auth.phone")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           style={styles.input}
         />
 
         <TextInput
           placeholder={t("auth.password")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           secureTextEntry
           style={styles.input}
         />
 
         <TextInput
           placeholder={t("auth.repeat_password")}
-          placeholderTextColor="#666"
+          placeholderTextColor={theme.textMuted}
           secureTextEntry
           style={styles.input}
         />
@@ -75,11 +78,11 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme) => StyleSheet.create({
 
   container: {
     flex: 1,
-    backgroundColor: "#2f3e55",
+    backgroundColor: theme.bg,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -95,36 +98,42 @@ const styles = StyleSheet.create({
 
   title: {
     fontSize: 34,
-    color: "white",
+    color: theme.textPrimary,
     fontWeight: "bold",
     marginBottom: 30
   },
 
   card: {
     width: "85%",
-    backgroundColor: "#3c5273",
+    backgroundColor: theme.cardBg,
+    borderWidth: 1,
+    borderColor: theme.border,
     borderRadius: 30,
     padding: 25
   },
 
   input: {
-    backgroundColor: "#d9d9d9",
+    backgroundColor: theme.bg,
+    borderWidth: 1,
+    borderColor: theme.border,
+    color: theme.textPrimary,
     borderRadius: 25,
     padding: 12,
     marginBottom: 12
   },
 
   text: {
+    color: theme.textSecondary,
     marginTop: 5
   },
 
   link: {
-    color: "#4da6ff",
+    color: theme.accent,
     fontWeight: "bold"
   },
 
   button: {
-    backgroundColor: "#3b82f6",
+    backgroundColor: theme.accent,
     padding: 12,
     borderRadius: 25,
     marginTop: 15,

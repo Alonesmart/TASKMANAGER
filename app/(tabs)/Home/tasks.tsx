@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useAppTheme } from "../../../theme";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminees";
@@ -40,8 +41,6 @@ const STATUT_NEXT: Record<string, TaskFilter> = {
   en_cours:  "terminees",
   terminees: "a_faire",
 };
-
-const T = { textSecondary: "#4a6b8a", textPrimary: "#e8f0fe" };
 
 // ─── TASK CARD ─────────────────────────────────────────────────────────────────
 const TaskCard = ({
@@ -156,7 +155,7 @@ const cStyles = StyleSheet.create({
 export default function Tasks() {
   const router = useRouter();
   const { t } = useTranslation();
-  const theme = { bg: "#0d1117", cardBg: "#161b22", accent: "#3d8ef8", textPrimary: "#e6edf3", textSecondary: "#7d8590", border: "#21262d", logoutColor: "#f85030" };
+  const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   // ── Récupération des params envoyés par router.push depuis nouvelle-tache ──
@@ -406,10 +405,10 @@ const createStyles = (theme: {
     paddingTop: 8, paddingBottom: 16,
   },
   eyebrow: {
-    color: T.textSecondary, fontSize: 11, fontWeight: "600",
+    color: theme.textSecondary, fontSize: 11, fontWeight: "600",
     letterSpacing: 1.4, textTransform: "uppercase", marginBottom: 2,
   },
-  headerTitle:    { color: T.textPrimary, fontSize: 32, fontWeight: "800", letterSpacing: -0.5 },
+  headerTitle:    { color: theme.textPrimary, fontSize: 32, fontWeight: "800", letterSpacing: -0.5 },
   headerBadge:    { backgroundColor: theme.accent + "33", borderRadius: 12, borderWidth: 1, borderColor: theme.accent, paddingHorizontal: 10, paddingVertical: 4 },
   headerBadgeTxt: { color: theme.accent, fontWeight: "700", fontSize: 14 },
 
