@@ -1,4 +1,4 @@
-import { FontAwesome5, Ionicons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -76,6 +76,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="new-projet" options={{ href: null }} />
       <Tabs.Screen name="new-report" options={{ href: null }} />
       <Tabs.Screen name="new-tasks" options={{ href: null }} />
+      <Tabs.Screen name="TabBar" options={{ href: null }} />
 
       {/* ── Home ── */}
       <Tabs.Screen
@@ -134,6 +135,27 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* ── Video ── */}
+      <Tabs.Screen
+        name="video"
+        options={{
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon
+              focused={focused}
+              color={color}
+              label={t("tabs.video")}
+              icon={
+                <Ionicons
+                  name={focused ? "videocam" : "videocam-outline"}
+                  size={21}
+                  color={color}
+                />
+              }
+            />
+          ),
+        }}
+      />
+
       {/* ── Messages ── */}
       <Tabs.Screen
         name="messages"
@@ -154,7 +176,6 @@ export default function TabsLayout() {
           ),
         }}
       />
-
       {/* ── Reports ── */}
       <Tabs.Screen
         name="reports"
@@ -171,21 +192,6 @@ export default function TabsLayout() {
                   color={color}
                 />
               }
-            />
-          ),
-        }}
-      />
-
-      {/* ── Stages ── */}
-      <Tabs.Screen
-        name="stages"
-        options={{
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon
-              focused={focused}
-              color={color}
-              label={t("tabs.stages")}
-              icon={<FontAwesome5 name="graduation-cap" size={18} color={color} />}
             />
           ),
         }}

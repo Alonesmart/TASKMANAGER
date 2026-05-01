@@ -1,15 +1,15 @@
+import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  View,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
+  View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons, FontAwesome, AntDesign } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useTranslation } from "react-i18next";
 import { useAppTheme } from "../../../theme";
 
 export default function LoginScreen() {
@@ -152,14 +152,15 @@ const createStyles = (theme: {
     padding: 12,
     borderRadius: 20,
     alignItems: "center",
-    alignSelf: "flex-end",
-    width: 100,
+    textAlign: "center",
+    alignSelf: "center",
+    width: 180,
   },
 
   buttonText: {
     color: "#fff",
     fontWeight: "bold",
-
+    textAlign: "center",
   },
 
   social: {

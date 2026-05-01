@@ -1,6 +1,6 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Animated,
@@ -262,7 +262,7 @@ export default function Home() {
               <View style={styles.progressTop}>
                 <View>
                   <Text style={styles.progressLabel}>{t("home.global_progress")}</Text>
-                  <Text style={styles.progressSub}>{"Mis à jour aujourd'hui"}</Text>
+                  <Text style={styles.progressSub}>{t("home.updated_today")}</Text>
                 </View>
                 <View style={styles.percentBadge}>
                   <Text style={styles.percentText}>0%</Text>
@@ -284,32 +284,32 @@ export default function Home() {
           {/* ── Quick Actions ── */}
           <AnimatedCard delay={160}>
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Actions rapides</Text>
+              <Text style={styles.sectionTitle}>{t("home.quick_actions")}</Text>
               <View style={styles.quickActions}>
                 <QuickAction
                   icon="add-circle-outline"
-                  label="Nouvelle tâche"
+                  label={t("home.new_task")}
                   color={T.accent}
                   onPress={() => router.push("/(tabs)/Home/tasks")}
                   styles={styles}
                 />
                 <QuickAction
                   icon="chatbubble-outline"
-                  label="Message"
+                  label={t("home.message")}
                   color={T.purple}
                   onPress={() => router.push("/(tabs)/Home/new-message")}
                   styles={styles}
                 />
                 <QuickAction
                   icon="folder-open-outline"
-                  label="Projet"
+                  label={t("home.project")}
                   color={T.green}
                   onPress={() => router.push("/(tabs)/Home/new-projet")}
                   styles={styles}
                 />
                 <QuickAction
                   icon="document-text-outline"
-                  label="Rapport"
+                  label={t("home.report")}
                   color={T.orange}
                   onPress={() => router.push("/(tabs)/Home/new-report")}
                   styles={styles}
@@ -339,7 +339,7 @@ export default function Home() {
                   onPress={() => router.push("/(tabs)/Home/tasks")}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.seeAll}>Voir tout →</Text>
+                  <Text style={styles.seeAll}>{t("home.see_all")}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -348,16 +348,14 @@ export default function Home() {
                   <Ionicons name="checkmark-done" size={28} color={T.accent} />
                 </View>
                 <Text style={styles.emptyTitle}>{t("home.no_task_assigned")}</Text>
-                <Text style={styles.emptyHint}>
-                  Appuyez sur + pour créer votre première tâche
-                </Text>
+                <Text style={styles.emptyHint}>{t("home.empty_hint")}</Text>
                 <TouchableOpacity
                   style={styles.emptyBtn}
                   onPress={() => router.push("/(tabs)/Home/tasks")}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="add" size={16} color="#fff" />
-                  <Text style={styles.emptyBtnText}>Nouvelle tâche</Text>
+                  <Text style={styles.emptyBtnText}>{t("home.new_task")}</Text>
                 </TouchableOpacity>
               </View>
             </View>

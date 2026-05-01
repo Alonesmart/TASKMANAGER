@@ -59,9 +59,9 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="stages"
+        name="video"
         options={{
-          title: "Stages",
+          title: "Vidéo",
           tabBarIcon: ({ color }) => (
             <FontAwesome5 name="graduation-cap" size={20} color={color} />
           ),
