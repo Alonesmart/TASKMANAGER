@@ -1,10 +1,10 @@
 import React, { useMemo } from "react";
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome, AntDesign } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useAppTheme } from "../../../theme";
+import Ellipse from "../../../components/Ellipse";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -14,56 +14,85 @@ export default function RegisterScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={["#4A90E2", "#1F3C68"]}
-        start={{ x: 3, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.ellipse}
-      />
+      <Ellipse />
 
-      <Text style={styles.title}>{t("auth.register_title")}</Text>
+      <View style={styles.formContent}>
+        <Text style={styles.title}>{t("auth.register_title")}</Text>
 
-      <View style={styles.card}>
-        <TextInput
-          placeholder={t("auth.name")}
-          placeholderTextColor={theme.textMuted}
-          style={styles.input}
-        />
+        <View style={styles.card}>
+          <TextInput
+            placeholder={t("name")}
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="name"
+            textContentType="name"
+            style={styles.input}
+          />
 
-        <TextInput
-          placeholder={t("auth.phone")}
-          placeholderTextColor={theme.textMuted}
-          style={styles.input}
-        />
+          <TextInput
+            placeholder={t("phone")}
+            placeholderTextColor={theme.textMuted}
+            keyboardType="phone-pad"
+            autoCapitalize="none"
+            autoComplete="tel"
+            textContentType="telephoneNumber"
+            style={styles.input}
+          />
 
-        <TextInput
-          placeholder={t("auth.password")}
-          placeholderTextColor={theme.textMuted}
-          secureTextEntry
-          style={styles.input}
-        />
+          <TextInput
+            placeholder={t("password")}
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="password"
+            textContentType="password"
+            style={styles.input}
+          />
 
-        <TextInput
-          placeholder={t("auth.repeat_password")}
-          placeholderTextColor={theme.textMuted}
-          secureTextEntry
-          style={styles.input}
-        />
+          <TextInput
+            placeholder={t("auth.repeat_password")}
+            placeholderTextColor={theme.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="password"
+            textContentType="password"
+            style={styles.input}
+          />
 
-        <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/Connexion")}>
-          <Text style={styles.text}>
-            {t("auth.already_account")} <Text style={styles.link}>{t("auth.sign_in")}</Text>
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/Connexion")}>
+            <Text style={styles.text}>
+              {t("auth.already_account")} <Text style={styles.link}>{t("auth.sign_in")}</Text>
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button} onPress={() => router.push("/(tabs)/Authentification/Connexion")}>
-          <Text style={styles.buttonText}>{t("auth.create_account")}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={() => router.push("/(tabs)/Authentification/Connexion")}>
+            <Text style={styles.buttonText}>{t("auth.create_account")}</Text>
+          </TouchableOpacity>
 
-        <View style={styles.social}>
-          <FontAwesome name="facebook" size={28} color="#1877F2" />
-          <AntDesign name="google" size={28} color="#DB4437" />
-          <FontAwesome name="linkedin" size={28} color="#0077B5" />
+          <View style={styles.social}>
+            <TouchableOpacity
+              accessibilityLabel="Continuer avec Facebook"
+              style={styles.socialButton}
+              activeOpacity={0.75}
+            >
+              <FontAwesome name="facebook" size={22} color="#1877F2" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityLabel="Continuer avec Google"
+              style={styles.socialButton}
+              activeOpacity={0.75}
+            >
+              <AntDesign name="google" size={22} color="#DB4437" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityLabel="Continuer avec LinkedIn"
+              style={styles.socialButton}
+              activeOpacity={0.75}
+            >
+              <FontAwesome name="linkedin" size={22} color="#0077B5" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -86,13 +115,10 @@ const createStyles = (theme: {
     alignItems: "center",
     justifyContent: "center",
   },
-  ellipse: {
-    position: "absolute",
-    width: 550,
-    height: 550,
-    borderRadius: 325,
-    top: -300,
-    left: -250,
+  formContent: {
+    alignItems: "center",
+    transform: [{ translateY: 35 }],
+    width: "100%",
   },
   title: {
     fontSize: 34,
@@ -125,15 +151,19 @@ const createStyles = (theme: {
     color: theme.accent,
     fontWeight: "bold",
   },
-  button: {
-    backgroundColor: theme.accent,
-    padding: 12,
-    borderRadius: 25,
-    marginTop: 15,
-    alignSelf: "flex-end",
-    paddingHorizontal: 25,
-  },
-  buttonText: {
+button: {
+      backgroundColor: theme.accent,
+      paddingVertical: 13,
+      borderRadius: 14,
+      alignItems: "center",
+      alignSelf: "center",
+      width: "100%",
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.28,
+      shadowRadius: 14,
+      elevation: 6,
+    },  buttonText: {
     color: "#fff",
     fontWeight: "bold",
   },
@@ -141,6 +171,21 @@ const createStyles = (theme: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 20,
-    gap: 25,
+    gap: 12,
+  },
+  socialButton: {
+    width: 54,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: theme.bg,
+    borderWidth: 1,
+    borderColor: theme.border,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
 });

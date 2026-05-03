@@ -1,5 +1,4 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
 
 export default function LoginScreen() {
@@ -17,16 +17,10 @@ export default function LoginScreen() {
   const { t } = useTranslation();
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
   return (
     <View style={styles.container}>
-
-      {/* Ellipse en dégradé */}
-           <LinearGradient
-             colors={["#2F7AE7", "#2D384A"]}
-             start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.ellipse}
-          />
+      <Ellipse />
 
       {/* Titre */}
       <Text style={styles.title}>{t("auth.title_login")}</Text>
@@ -34,14 +28,18 @@ export default function LoginScreen() {
       {/* Card */}
       <View style={styles.card}>
 
-        {/* email */}
+        {/* Email */}
         <View style={styles.inputContainer}>
           <TextInput
             placeholder={t("Email")}
             placeholderTextColor={theme.textMuted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoComplete="email"
+            textContentType="emailAddress"
             style={styles.input}
           />
-          <Ionicons name="person-circle-outline" size={22} color={theme.textSecondary} />
+          <Ionicons name="mail-outline" size={21} color={theme.textSecondary} />
         </View>
 
         {/* Password */}
@@ -50,35 +48,54 @@ export default function LoginScreen() {
             placeholder={t("password")}
             placeholderTextColor={theme.textMuted}
             secureTextEntry
+            autoCapitalize="none"
+            autoComplete="password"
+            textContentType="password"
             style={styles.input}
           />
           <Ionicons name="lock-closed-outline" size={20} color={theme.textSecondary} />
         </View>
 
-        {/* Links */}
+        {/* Mot de passe oublié */}
         <Text style={styles.forgot}>{t("auth.forgot_password")}</Text>
-        {/* //< Text style={styles.signup}></Text> */}
-       <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/RegisterScreen")}>
-  <Text style={styles.signup}>
-    {t("auth.no_account")} <Text style={{ color: theme.accent }}>{t("auth.sign_up")}</Text>
-  </Text>
-</TouchableOpacity>
 
-<TouchableOpacity
-  style={styles.button}
-  onPress={() => router.push("/(tabs)/Home")}
->
-  <Text style={styles.buttonText}>{t("common.login")}</Text>
-</TouchableOpacity>
+        {/* Lien inscription */}
+        <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/RegisterScreen")}>
+          <Text style={styles.signup}>
+            {t("auth.no_account")}{" "}
+            <Text style={{ color: theme.accent }}>{t("auth.sign_up")}</Text>
+          </Text>
+        </TouchableOpacity>
+
+        {/* Bouton de connexion */}
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => router.push("/(tabs)/Home")}
+        >
+          <Text style={styles.buttonText}>{t("common.login")}</Text>
+        </TouchableOpacity>
+
         {/* Social */}
         <View style={styles.social}>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.75}>
+          <TouchableOpacity
+            accessibilityLabel="Continuer avec Facebook"
+            style={styles.socialButton}
+            activeOpacity={0.75}
+          >
             <FontAwesome name="facebook" size={22} color="#1877F2" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.75}>
+          <TouchableOpacity
+            accessibilityLabel="Continuer avec Google"
+            style={styles.socialButton}
+            activeOpacity={0.75}
+          >
             <AntDesign name="google" size={22} color="#DB4437" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton} activeOpacity={0.75}>
+          <TouchableOpacity
+            accessibilityLabel="Continuer avec LinkedIn"
+            style={styles.socialButton}
+            activeOpacity={0.75}
+          >
             <FontAwesome name="linkedin" size={22} color="#0077B5" />
           </TouchableOpacity>
         </View>
@@ -86,6 +103,7 @@ export default function LoginScreen() {
     </View>
   );
 }
+
 const createStyles = (theme: {
   bg: string;
   cardBg: string;
@@ -96,94 +114,100 @@ const createStyles = (theme: {
   border: string;
 }) =>
   StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.bg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    container: {
+      flex: 1,
+      backgroundColor: theme.bg,
+      alignItems: "center",
+      justifyContent: "center",
+    },
 
- ellipse: {
-    position: "absolute",
-    width: 550,
-    height: 550,
-    borderRadius: 325,
-    top: -300,
-    left: -250
-  },
+    title: {
+      fontSize: 32,
+      color: theme.textPrimary,
+      fontWeight: "bold",
+      marginBottom: 20,
+    },
 
-  title: {
-    fontSize: 32,
-    color: theme.textPrimary,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
+    card: {
+      width: "85%",
+      backgroundColor: theme.cardBg,
+      borderRadius: 22,
+      padding: 22,
+      borderWidth: 1,
+      borderColor: theme.border,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.18,
+      shadowRadius: 24,
+      elevation: 8,
+    },
 
-  card: {
-    width: "85%",
-    backgroundColor: theme.cardBg,
-    borderRadius: 25,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      marginBottom: 18,
+      justifyContent: "space-between",
+      minHeight: 46,
+    },
 
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
-    marginBottom: 20,
-    justifyContent: "space-between",
-  },
+    input: {
+      flex: 1,
+      color: theme.textPrimary,
+      paddingVertical: 8,
+    },
 
-  input: {
-    flex: 1,
-    color: theme.textPrimary,
-    paddingVertical: 8,
-  },
+    forgot: {
+      color: theme.accent,
+      marginBottom: 5,
+    },
 
-  forgot: {
-    color: theme.accent,
-    marginBottom: 5,
-  },
+    signup: {
+      color: theme.textSecondary,
+      marginBottom: 20,
+    },
 
-  signup: {
-    color: theme.textSecondary,
-    marginBottom: 20,
-  },
+    button: {
+      backgroundColor: theme.accent,
+      paddingVertical: 13,
+      borderRadius: 14,
+      alignItems: "center",
+      alignSelf: "center",
+      width: "100%",
+      shadowColor: theme.accent,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.28,
+      shadowRadius: 14,
+      elevation: 6,
+    },
 
-  button: {
-    backgroundColor: theme.accent,
-    padding: 12,
-    borderRadius: 20,
-    alignItems: "center",
-    textAlign: "center",
-    alignSelf: "center",
-    width: 180,
-  },
+    buttonText: {
+      color: "#fff",
+      fontWeight: "bold",
+      textAlign: "center",
+    },
 
-  buttonText: {
-    color: "#fff",
-    fontWeight: "bold",
-    textAlign: "center",
-  },
+    social: {
+      flexDirection: "row",
+      justifyContent: "center",
+      marginTop: 20,
+      gap: 12,
+    },
 
-  social: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 20,
-    gap: 12,
-  },
-
-  socialButton: {
-    width: 48,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: theme.bg,
-    borderWidth: 1,
-    borderColor: theme.border,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
+    socialButton: {
+      width: 54,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: theme.bg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+  });
