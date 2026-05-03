@@ -8,10 +8,10 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "../../../theme";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
@@ -124,13 +124,10 @@ export default function RapportScreen() {
         <EmptyState filterKey={activeFilter} t={t} />
       </View>
 
-       <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push("/(tabs)/Home/new-report")}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={26} color="#fff" />
-        </TouchableOpacity>
+      <AddButton
+        backgroundColor={T.accent}
+        onPress={() => router.push("/(tabs)/Home/new-report")}
+      />
     </SafeAreaView>
   );
 }
@@ -165,23 +162,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: -0.5,
   },
-fab: {
-  position: "absolute",
-  right: 20,
-  bottom: Platform.OS === "ios" ? 94 : 78,
-  width: 48,
-  height: 48,
-  borderRadius: 24,
-  backgroundColor: T.accent,
-  alignItems: "center",
-  justifyContent: "center",
-  shadowColor: T.accent,
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.45,
-  shadowRadius: 12,
-  elevation: 10,
-},
-
   // ── Filtres ──
   filterRow: {
     flexDirection: "row",

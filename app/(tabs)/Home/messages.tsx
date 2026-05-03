@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "../../../theme";
 
 
@@ -30,12 +31,10 @@ export default function Messages() {
           {t("messages.start_conversation")}
         </Text>
       </View>
-        <TouchableOpacity
-  style={styles.fabSmall}
-  onPress={() => router.push(NEW_MESSAGE_ROUTE)}
->
-  <Ionicons name="add" size={24} color="#fff" />
-</TouchableOpacity>
+      <AddButton
+        backgroundColor={theme.accent}
+        onPress={() => router.push(NEW_MESSAGE_ROUTE)}
+      />
     </View>
   );
 }
@@ -63,19 +62,6 @@ const createStyles = (theme: {
     justifyContent: "center",
     alignItems: "center",
   },
-  fabSmall: {
-    position: "absolute",
-    bottom: 20,
-    right: 20,
-    backgroundColor: theme.accent,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-
   circle: {
     width: 120,
     height: 120,

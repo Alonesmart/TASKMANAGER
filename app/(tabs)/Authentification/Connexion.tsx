@@ -22,11 +22,11 @@ export default function LoginScreen() {
 
       {/* Ellipse en dégradé */}
            <LinearGradient
-             colors={["#4A90E2", "#1F3C68"]}
-             start={{ x: 3, y: 0 }}
-             end={{ x: 1, y: 1 }}
-             style={styles.ellipse}
-           />
+             colors={["#2F7AE7", "#2D384A"]}
+             start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.ellipse}
+          />
 
       {/* Titre */}
       <Text style={styles.title}>{t("auth.title_login")}</Text>
@@ -34,10 +34,10 @@ export default function LoginScreen() {
       {/* Card */}
       <View style={styles.card}>
 
-        {/* Username */}
+        {/* email */}
         <View style={styles.inputContainer}>
           <TextInput
-            placeholder={t("auth.username")}
+            placeholder={t("Email")}
             placeholderTextColor={theme.textMuted}
             style={styles.input}
           />
@@ -47,7 +47,7 @@ export default function LoginScreen() {
         {/* Password */}
         <View style={styles.inputContainer}>
           <TextInput
-            placeholder={t("auth.password")}
+            placeholder={t("password")}
             placeholderTextColor={theme.textMuted}
             secureTextEntry
             style={styles.input}
@@ -72,10 +72,16 @@ export default function LoginScreen() {
 </TouchableOpacity>
         {/* Social */}
         <View style={styles.social}>
-          <FontAwesome name="facebook" size={22} color="#1877F2" />
-          <AntDesign name="google" size={22} color="#DB4437" />
-          <FontAwesome name="linkedin" size={28} color="#0077B5" />
-         </View>
+          <TouchableOpacity style={styles.socialButton} activeOpacity={0.75}>
+            <FontAwesome name="facebook" size={22} color="#1877F2" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.socialButton} activeOpacity={0.75}>
+            <AntDesign name="google" size={22} color="#DB4437" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.socialButton} activeOpacity={0.75}>
+            <FontAwesome name="linkedin" size={22} color="#0077B5" />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -167,6 +173,17 @@ const createStyles = (theme: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 20,
-    gap: 15,
+    gap: 12,
+  },
+
+  socialButton: {
+    width: 48,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: theme.bg,
+    borderWidth: 1,
+    borderColor: theme.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

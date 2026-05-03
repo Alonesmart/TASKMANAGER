@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AddButton from "../../../components/AddButton";
 import { AppTheme, useAppTheme } from "../../../theme";
 
 const { width } = Dimensions.get("window");
@@ -366,13 +367,10 @@ export default function Home() {
       </SafeAreaView>
 
       {/* ── FAB ── */}
-      <TouchableOpacity
+      <AddButton
+        backgroundColor={T.accent}
         onPress={() => router.push("/(tabs)/Home/tasks")}
-        style={styles.fab}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
+      />
     </View>
   );
 }
@@ -620,21 +618,4 @@ const createStyles = (T: HomePalette) => StyleSheet.create({
   },
   emptyBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
-  // FAB
-  fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: T.accent,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: T.accent,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 10,
-  },
 });

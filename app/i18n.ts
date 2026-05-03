@@ -61,6 +61,7 @@ if (!i18n.isInitialized) {
     lng: getDeviceLanguage(),
     fallbackLng: DEFAULT_LANGUAGE,
     compatibilityJSON: "v4",
+    showSupportNotice: false,
     interpolation: { escapeValue: false },
   });
 }

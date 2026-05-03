@@ -12,6 +12,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppTheme, useAppTheme } from "../../../theme";
+import AddButton from "../../../components/AddButton";
 
 const createColors = (theme: AppTheme) => ({
   bg: theme.bg,
@@ -299,14 +300,10 @@ export default function ProjetsScreen() {
           ))}
         </ScrollView>
       )}
-      <TouchableOpacity
-          style={styles.addButton}
-                   onPress={() => router.push("/(tabs)/Home/new-projet")}
-          activeOpacity={0.85}
-
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
+      <AddButton
+        backgroundColor={COLORS.accent}
+        onPress={() => router.push("/(tabs)/Home/new-projet")}
+      />
     </SafeAreaView>
   );
 }
@@ -320,19 +317,6 @@ const createStyles = (COLORS: ProjectColors) => StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
   },
   title: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: 0.3 },
-  addButton: {
-  marginTop: 14,
-  alignSelf: "flex-end",
-  marginRight: 30,
-  width: 44,
-  height: 44,
-  borderRadius: 22,
-  backgroundColor: COLORS.accent,
-  justifyContent: "center",
-  alignItems: "center",
-  },
-  addButtonText: { fontSize: 28, color: '#fff', fontWeight: '300', lineHeight: 32, marginTop: -2 },
-
   searchRow: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 20, gap: 10, marginBottom: 12,

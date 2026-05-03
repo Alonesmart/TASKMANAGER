@@ -1,16 +1,17 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
-  View,
-  Text,
+  ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
+  View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "../../../theme";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
@@ -377,13 +378,10 @@ export default function Tasks() {
       )}
 
       {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
+      <AddButton
+        backgroundColor={theme.accent}
         onPress={() => router.push("/(tabs)/Home/new-tasks" as any)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={30} color="#fff" />
-      </TouchableOpacity>
+      />
     </View>
   );
 }
@@ -438,11 +436,4 @@ const createStyles = (theme: {
   emptyTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: "bold", marginBottom: 8 },
   emptySub:   { color: theme.textSecondary, textAlign: "center", lineHeight: 20 },
 
-  fab: {
-    position: "absolute", bottom: 20, right: 20,
-    backgroundColor: theme.accent, width: 60, height: 60,
-    borderRadius: 30, justifyContent: "center", alignItems: "center",
-    elevation: 6, shadowColor: theme.accent,
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 8,
-  },
 });
