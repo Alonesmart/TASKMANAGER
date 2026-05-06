@@ -2,10 +2,10 @@ import { StyleSheet } from "react-native";
 import { ThemedScreen } from "@/components/themed-primitives";
 import { ThemedText } from "@/components/themed-text";
 
-export default function ForgetPassword() {
+export default function ForgotPassword() {
   return (
     <ThemedScreen style={styles.container}>
-      <ThemedText>ForgetPassword</ThemedText>
+      <ThemedText>ForgotPassword</ThemedText>
     </ThemedScreen>
   );
 }

@@ -1,8 +1,11 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import axios from "axios";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
@@ -11,13 +14,56 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
+import { API_URL } from "../../API_URL";
 
 export default function LoginScreen() {
+  // ✅ Tous les hooks INSIDE le composant
   const router = useRouter();
   const { t } = useTranslation();
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+ 
+  // ✅ States renommés selon la DB (nom / motdepasse)
+  const [email, setEmail] = useState("");
+  const [motdepasse, setMotdepasse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
+  // ✅ Fonction de connexion corrigée
+  const handleLogin = async () => {
+    if (!email || !motdepasse) {
+      Alert.alert("Erreur", "Remplissez tous les champs");
+      return;
+    }
+ 
+    try {
+      setLoading(true);
+      setError("");
+ 
+      // ✅ JSON au lieu de URLSearchParams (correspond à notre backend FastAPI)
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        motdepasse,
+      });
+ 
+      const token = response.data.access_token;
+      console.log("TOKEN:", token);
+ 
+      // TODO: sauvegarder le token
+      // await AsyncStorage.setItem("access_token", token);
+ 
+      router.push("/(tabs)/Home");
+ 
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.detail || "Nom ou mot de passe incorrect";
+      setError(message);
+      Alert.alert("Erreur", message);
+    } finally {
+      setLoading(false);
+    }
+  };
   return (
     <View style={styles.container}>
       <Ellipse />
@@ -36,6 +82,8 @@ export default function LoginScreen() {
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
+            value={email}
+            onChangeText={setEmail}
             textContentType="emailAddress"
             style={styles.input}
           />
@@ -47,33 +95,51 @@ export default function LoginScreen() {
           <TextInput
             placeholder={t("password")}
             placeholderTextColor={theme.textMuted}
-            secureTextEntry
+            secureTextEntry={!showPassword} 
             autoCapitalize="none"
             autoComplete="password"
+            value={motdepasse}
+            onChangeText={setMotdepasse}
             textContentType="password"
             style={styles.input}
           />
-          <Ionicons name="lock-closed-outline" size={20} color={theme.textSecondary} />
+           <TouchableOpacity
+            onPress={() => setShowPassword(!showPassword)}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={showPassword ? "eye-outline" : "eye-off-outline"}
+              size={22}
+              color={theme.textSecondary}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Mot de passe oublié */}
-        <Text style={styles.forgot}>{t("auth.forgot_password")}</Text>
+      <Text style={styles.forgot}>{t("auth.forgot_password")}</Text>
 
         {/* Lien inscription */}
-        <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/RegisterScreen")}>
+        <TouchableOpacity 
+          onPress={() => router.push("/(tabs)/Authentification/RegisterScreen")}>
           <Text style={styles.signup}>
-            {t("auth.no_account")}{" "}
-            <Text style={{ color: theme.accent }}>{t("auth.sign_up")}</Text>
-          </Text>
+          {t("auth.no_account")}{" "}
+          <Text style={{ color: theme.accent }}>{t("auth.sign_up")}</Text>
+      </Text>
         </TouchableOpacity>
 
-        {/* Bouton de connexion */}
+          {/* ✅ Bouton appelle handleLogin + spinner pendant chargement */}
         <TouchableOpacity
-          style={styles.button}
-          onPress={() => router.push("/(tabs)/Home")}
+          style={[styles.button, loading && { opacity: 0.7 }]}
+          onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.buttonText}>{t("common.login")}</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>{t("common.login")}</Text>
+          )}
         </TouchableOpacity>
+
 
         {/* Social */}
         <View style={styles.social}>
