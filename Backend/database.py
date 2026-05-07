@@ -1,28 +1,31 @@
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 from passlib.context import CryptContext
 
-# ─── Configuration MySQL ───────────────────────────────────────
-DB_USER = "root"
-DB_PASSWORD = "votre_mot_de_passe"
-DB_HOST = "localhost"
-DB_PORT = "3306"
-DB_NAME = "taskmanager"
+# ─── URL de connexion MySQL ────────────────────────────────────────────────────
+# Configurable via variable d'environnement DATABASE_URL
+# Format : mysql+pymysql://user:password@host:port/dbname
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "mysql+pymysql://taskuser:Task2024!@localhost:3306/taskmanager"
+)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,       # vérifie la connexion avant chaque requête
+    pool_recycle=3600,        # recycle les connexions toutes les 1h
+    pool_size=10,             # taille du pool de connexions
+    max_overflow=20,          # connexions supplémentaires si le pool est plein
+    echo=False,               # mettre True pour voir les requêtes SQL en console
+)
 
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Stockage temporaire utilise par les routes login/register actuelles.
-pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
-fake_users_db = {}
-login_logs = []
-reset_tokens_db = {}
+# ─── Hachage des mots de passe ─────────────────────────────────────────────────
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ─── Dépendance pour les routes ───────────────────────────────
+# ─── Dépendance FastAPI → session DB ──────────────────────────────────────────
 def get_db():
     db = SessionLocal()
     try:

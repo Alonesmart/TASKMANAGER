@@ -1,16 +1,87 @@
-import React, { useMemo } from "react";
-import { View, Text, TextInput, StyleSheet, TouchableOpacity } from "react-native";
-import { FontAwesome, AntDesign } from "@expo/vector-icons";
+import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import axios from "axios";
 import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react"; // ✅ un seul import React
 import { useTranslation } from "react-i18next";
-import { useAppTheme } from "../../../theme";
+import {
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import Ellipse from "../../../components/Ellipse";
+import { useAppTheme } from "../../../theme";
+import { API_URL } from "../../API_URL";
+ 
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+
+  const [nom, setNom] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [motdepasse, setMotdepasse] = useState("");
+  const [confirmMotdepasse, setConfirmMotdepasse] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+ 
+  // ✅ States visibilité mots de passe
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+ 
+  // ✅ Fonction d'inscription
+  const handleRegister = async () => {
+    if (!nom || !motdepasse || !confirmMotdepasse) {
+      Alert.alert("Erreur", "Remplissez tous les champs obligatoires");
+      return;
+    }
+ 
+    if (motdepasse !== confirmMotdepasse) {
+      setError("Les mots de passe ne correspondent pas");
+      return;
+    }
+ 
+    if (motdepasse.length < 8) {
+      setError("Le mot de passe doit contenir au moins 8 caractères");
+      return;
+    }
+ 
+    try {
+      setLoading(true);
+      setError("");
+ 
+      const response = await axios.post(`${API_URL}/register`, {
+        nom,
+        email,
+        phone,
+        motdepasse,
+        confirm_motdepasse: confirmMotdepasse,
+      });
+ 
+      const token = response.data.access_token;
+      console.log("TOKEN:", token);
+ 
+      // TODO: await AsyncStorage.setItem("access_token", token);
+ 
+      Alert.alert("Succès", "Compte créé avec succès !");
+      router.push("/(tabs)/Home");
+ 
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.detail || "Erreur lors de la création du compte";
+      setError(message);
+      Alert.alert("Erreur", message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,55 +91,135 @@ export default function RegisterScreen() {
         <Text style={styles.title}>{t("auth.register_title")}</Text>
 
         <View style={styles.card}>
-          <TextInput
-            placeholder={t("name")}
-            placeholderTextColor={theme.textMuted}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="name"
-            textContentType="name"
-            style={styles.input}
-          />
+        {/* ── Nom ── */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="person-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+            <TextInput
+              placeholder={t("name")}
+              placeholderTextColor={theme.textMuted}
+              autoCapitalize="none"
+              autoComplete="name"
+              textContentType="name"
+              value={nom}
+              onChangeText={setNom}
+              style={styles.inputWithIcon}
+            />
+          </View>
+ 
+  {/* ── Email ── */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="mail-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+            <TextInput
+              placeholder={t("email")}
+              placeholderTextColor={theme.textMuted}
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.inputWithIcon}
+            />
+          </View>
+ 
 
-          <TextInput
-            placeholder={t("phone")}
-            placeholderTextColor={theme.textMuted}
-            keyboardType="phone-pad"
-            autoCapitalize="none"
-            autoComplete="tel"
-            textContentType="telephoneNumber"
-            style={styles.input}
-          />
+           {/* ── Téléphone ── */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="call-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+            <TextInput
+              placeholder={t("phone")}
+              placeholderTextColor={theme.textMuted}
+              keyboardType="phone-pad"
+              autoCapitalize="none"
+              autoComplete="tel"
+              textContentType="telephoneNumber"
+              value={phone}
+              onChangeText={setPhone}
+              style={styles.inputWithIcon}
+            />
+          </View>
 
-          <TextInput
-            placeholder={t("password")}
-            placeholderTextColor={theme.textMuted}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password"
-            textContentType="password"
-            style={styles.input}
-          />
+         {/* ── Mot de passe ── */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="lock-closed-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+            <TextInput
+              placeholder={t("password")}
+              placeholderTextColor={theme.textMuted}
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+              value={motdepasse}
+              onChangeText={setMotdepasse}
+              style={styles.inputWithIcon}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              activeOpacity={0.7}
+              style={styles.eyeButton}
+            >
+              <Ionicons
+                name={showPassword ? "eye-outline" : "eye-off-outline"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
 
-          <TextInput
-            placeholder={t("auth.repeat_password")}
-            placeholderTextColor={theme.textMuted}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password"
-            textContentType="password"
-            style={styles.input}
-          />
-
+          {/* ── Confirmer mot de passe ── */}
+          <View style={styles.inputContainer}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
+            <TextInput
+              placeholder={t("auth.repeat_password")}
+              placeholderTextColor={theme.textMuted}
+              secureTextEntry={!showConfirmPassword}
+              autoCapitalize="none"
+              autoComplete="password"
+              textContentType="password"
+              value={confirmMotdepasse}
+              onChangeText={setConfirmMotdepasse}
+              style={styles.inputWithIcon}
+            />
+            <TouchableOpacity
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              activeOpacity={0.7}
+              style={styles.eyeButton}
+            >
+              <Ionicons
+                name={showConfirmPassword ? "eye-outline" : "eye-off-outline"}
+                size={20}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+ 
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        
+         {/* Lien connexion */}
           <TouchableOpacity onPress={() => router.push("/(tabs)/Authentification/Connexion")}>
             <Text style={styles.text}>
               {t("auth.already_account")} <Text style={styles.link}>{t("auth.sign_in")}</Text>
             </Text>
           </TouchableOpacity>
-
-          <TouchableOpacity style={styles.button} onPress={() => router.push("/(tabs)/Authentification/Connexion")}>
-            <Text style={styles.buttonText}>{t("auth.create_account")}</Text>
+          
+          <TouchableOpacity
+            style={[styles.button, loading && { opacity: 0.7 }]}
+            onPress={handleRegister}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>{t("auth.create_account")}</Text>
+            )}
           </TouchableOpacity>
+
+            {/* ── Divider ── */}
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>Continuer avec</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <View style={styles.social}>
             <TouchableOpacity
@@ -126,6 +277,11 @@ const createStyles = (theme: {
     fontWeight: "bold",
     marginBottom: 30,
   },
+  errorText: {
+      color: "red",
+      fontSize: 13,
+      marginBottom: 10,
+    },
   card: {
     width: "85%",
     backgroundColor: theme.cardBg,
@@ -133,6 +289,7 @@ const createStyles = (theme: {
     padding: 25,
     borderWidth: 1,
     borderColor: theme.border,
+    
   },
   input: {
     backgroundColor: theme.bg,
@@ -143,6 +300,21 @@ const createStyles = (theme: {
     padding: 12,
     marginBottom: 12,
   },
+  eyeButton: {
+  position: "absolute",  // ✅ positionné absolument à droite
+  right: 12,
+  height: "100%",
+  justifyContent: "center",
+},
+ inputIcon: {
+      marginRight: 8,
+    },
+    inputWithIcon: {
+      flex: 1,
+      color: theme.textPrimary,
+      fontSize: 14,
+      paddingVertical: 10,
+    },
   text: {
     marginTop: 5,
     color: theme.textSecondary,
@@ -150,6 +322,7 @@ const createStyles = (theme: {
   link: {
     color: theme.accent,
     fontWeight: "bold",
+
   },
 button: {
       backgroundColor: theme.accent,
@@ -168,24 +341,52 @@ button: {
     fontWeight: "bold",
   },
   social: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 20,
-    gap: 12,
-  },
-  socialButton: {
-    width: 54,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: theme.bg,
-    borderWidth: 1,
-    borderColor: theme.border,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 3,
-  },
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 12,
+    },
+    socialButton: {
+      width: 54,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: theme.bg,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.12,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+  inputContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  position: "relative",  // ✅ nécessaire pour le positionnement absolu
+  backgroundColor: theme.bg,
+  borderWidth: 1,
+  borderColor: theme.border,
+  borderRadius: 25,
+  paddingHorizontal: 12,
+  marginBottom: 12,
+  minHeight: 48,
+},
+divider: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: 18,
+      marginBottom: 14,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    dividerText: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      fontWeight: "500",
+    },
 });

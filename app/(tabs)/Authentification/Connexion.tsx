@@ -3,6 +3,8 @@ import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "react-native";
 import {
   ActivityIndicator,
   Alert,
@@ -66,6 +68,18 @@ export default function LoginScreen() {
   };
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0d1b3e" />
+
+    {/* Fond dégradé */}
+    <LinearGradient
+      colors={["#0d1b3e", "#0f2050", "#0d1b3e"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={StyleSheet.absoluteFill}
+    />
+
+    {/* Orbe haut gauche */}
+    <View style={styles.orbTopLeft} />
       <Ellipse />
 
       {/* Titre */}
@@ -93,7 +107,7 @@ export default function LoginScreen() {
         {/* Password */}
         <View style={styles.inputContainer}>
           <TextInput
-            placeholder={t("password")}
+            placeholder={t("auth.password")}
             placeholderTextColor={theme.textMuted}
             secureTextEntry={!showPassword} 
             autoCapitalize="none"
@@ -116,7 +130,10 @@ export default function LoginScreen() {
         </View>
 
         {/* Mot de passe oublié */}
-      <Text style={styles.forgot}>{t("auth.forgot_password")}</Text>
+         <TouchableOpacity 
+          onPress={() => router.push("/(tabs)/Authentification/ForgotPassword")}>
+          <Text style={styles.forgot}>{t("mot de passe oublié")}</Text>
+        </TouchableOpacity>
 
         {/* Lien inscription */}
         <TouchableOpacity 
@@ -139,7 +156,13 @@ export default function LoginScreen() {
             <Text style={styles.buttonText}>{t("common.login")}</Text>
           )}
         </TouchableOpacity>
-
+        
+          {/* ── Divider ── */}
+                    <View style={styles.divider}>
+                      <View style={styles.dividerLine} />
+                      <Text style={styles.dividerText}>Continuer avec</Text>
+                      <View style={styles.dividerLine} />
+                    </View>
 
         {/* Social */}
         <View style={styles.social}>
@@ -275,5 +298,31 @@ const createStyles = (theme: {
       shadowOpacity: 0.12,
       shadowRadius: 8,
       elevation: 3,
+    },
+    divider: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: 18,
+      marginBottom: 14,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    dividerText: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      fontWeight: "500",
+    },
+    orbTopLeft: {
+      position: "absolute",
+      top: -50,
+      left: -50,
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: "rgba(255, 255, 255, 0.1)",
     },
   });
