@@ -1,3 +1,5 @@
+import re
+
 from pydantic import BaseModel, EmailStr, field_validator
 from fastapi import HTTPException, Depends  
 from sqlalchemy.orm import Session
@@ -54,3 +56,19 @@ class UserRegister(BaseModel):
         if len(v) < 8:
             raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
         return v
+    
+    @field_validator("phone")
+    @classmethod
+    def validate_cameroon_phone(cls, v: str) -> str:
+        # Supprime les espaces
+        phone = v.replace(" ", "")
+
+        # Regex Cameroun
+        pattern = r"^(\+237)?6[0-9]{8}$"
+
+        if not re.match(pattern, phone):
+            raise ValueError(
+                "Numéro camerounais invalide. Exemple: +237 xxxxxxxxx ou 6xxxxxxxx"
+            )
+
+        return phone

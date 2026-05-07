@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
-import { API_URL } from "../../API_URL";
+import { API_URL } from "../Root/API_URL";
  
 
 export default function RegisterScreen() {

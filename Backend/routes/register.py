@@ -13,14 +13,14 @@ ALGORITHM                   = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers 
 def create_access_token(email: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode({"sub": email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
-# ─── Route POST /register ─────────────────────────────────────────────────────
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
+#  Route POST /register 
+@router.post("/register", response_model=Token, status_code=status.HTTP_200_OK)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
 
     # 1. Vérifier la correspondance des mots de passe

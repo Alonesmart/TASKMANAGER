@@ -24,10 +24,10 @@ app = FastAPI(
 # ─── CORS (indispensable pour React Native) ────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["127.0.0.1:8000  "],       
+    allow_origins=["http://127.0.0.1:*", "http://localhost:*"],
     allow_credentials=True,
-    allow_methods=["127.0.0.1:8000"],
-    allow_headers=["127.0.0.1:8000"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # ─── Routers ──────────────────────────────────────────────────────────────────

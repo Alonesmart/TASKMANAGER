@@ -16,13 +16,13 @@ ALGORITHM                   = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 MAX_TENTATIVES              = 5
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 def create_access_token(email: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode({"sub": email, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
 
-# ─── Route POST /login ────────────────────────────────────────────────────────
+#Route POST /login 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
@@ -58,7 +58,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Email ou mot de passe incorrect. "
-                   f"{'Compte bloqué.' if remaining <= 0 else f'{remaining} tentative(s) restante(s).'}",
+                   f"{'Compte bloqué.' if remaining <= 5 else f'{remaining} tentative(s) restante(s).'}",
         )
 
     # 5. Connexion réussie → réinitialiser le compteur

@@ -1,14 +1,14 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "react-native";
 import {
   ActivityIndicator,
   Alert,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
-import { API_URL } from "../../API_URL";
+import { API_URL } from "../Root/API_URL";
 
 export default function LoginScreen() {
   // ✅ Tous les hooks INSIDE le composant
@@ -30,7 +30,6 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [motdepasse, setMotdepasse] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   // ✅ Fonction de connexion corrigée
@@ -42,7 +41,6 @@ export default function LoginScreen() {
  
     try {
       setLoading(true);
-      setError("");
  
       // ✅ Correspond exactement au backend : POST /login
       const response = await axios.post(`${API_URL}/login`, {
@@ -61,7 +59,6 @@ export default function LoginScreen() {
     } catch (err: any) {
       const message =
         err?.response?.data?.detail || "Email ou mot de passe incorrect";
-      setError(message);
       Alert.alert("Erreur", message);
     } finally {
       setLoading(false);
