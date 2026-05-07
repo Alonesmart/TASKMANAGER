@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -22,23 +23,36 @@ export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const handleSend = async () => {
     if (!email.trim()) {
       Alert.alert("Erreur", "Veuillez entrer votre adresse e-mail.");
       return;
     }
+ 
     try {
       setLoading(true);
-      // TODO: appel API reset password
-      await new Promise((r) => setTimeout(r, 1500));
-      Alert.alert("Succès", "Un lien de réinitialisation a été envoyé à " + email);
-    } catch {
-      Alert.alert("Erreur", "Impossible d'envoyer le lien. Réessayez.");
+ 
+      // ✅ Vrai appel API : POST /forgot-password
+      await axios.post(`${API_URL}/forgot-password`, {
+        email: email.trim(),
+      });
+ 
+      setSent(true);
+      Alert.alert(
+        "Email envoyé",
+        `Un lien de réinitialisation a été envoyé à ${email}`
+      );
+    } catch (err: any) {
+      const message =
+        err?.response?.data?.detail || "Impossible d'envoyer le lien. Réessayez.";
+      Alert.alert("Erreur", message);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <View style={s.root}>
@@ -117,7 +131,7 @@ export default function ForgotPasswordScreen() {
 
         {/* ── Lien support bas de page ── */}
         <View style={s.supportRow}>
-          <Text style={s.supportText}>Besoin d'aide ? </Text>
+          <Text style={s.supportText}>Besoin d&apos;aide ? </Text>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={s.supportLink}>Contactez le support</Text>
           </TouchableOpacity>

@@ -1,9 +1,8 @@
-from pydantic import BaseModel
-from fastapi import HTTPException, Depends
+from pydantic import BaseModel, EmailStr, field_validator
+from fastapi import HTTPException, Depends  
 from sqlalchemy.orm import Session
 from .import models
 from .database import get_db
-from .main import app
 
 class UserCreate(BaseModel):
     nom: str
@@ -17,9 +16,41 @@ class UserResponse(BaseModel):
     phone: str 
     email: str
 
-    @app.get("/users/{user_id}", response_model=UserResponse)
-    def get_user(user_id: int, db: Session = Depends(get_db)):
-        user = db.query(models.User).filter(models.User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        return user
+class UserLogin(BaseModel):
+    email:      EmailStr
+    motdepasse: str          # correspond au champ envoyé par le frontend React Native
+
+class Token(BaseModel):
+    access_token: str
+    token_type:   str
+    message:      str
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token:            str
+    new_motdepasse:   str
+    confirm_motdepasse: str
+
+class UserRegister(BaseModel):
+    nom:               str
+    email:             EmailStr
+    phone:             str  = ""
+    motdepasse:        str
+    confirm_motdepasse: str
+
+    @field_validator("nom")
+    @classmethod
+    def nom_non_vide(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Le nom ne peut pas être vide")
+        return v.strip()
+
+    @field_validator("motdepasse")
+    @classmethod
+    def motdepasse_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
+        return v

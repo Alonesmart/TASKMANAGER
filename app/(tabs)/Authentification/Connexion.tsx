@@ -1,4 +1,5 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
@@ -43,29 +44,30 @@ export default function LoginScreen() {
       setLoading(true);
       setError("");
  
-      // ✅ JSON au lieu de URLSearchParams (correspond à notre backend FastAPI)
+      // ✅ Correspond exactement au backend : POST /login
       const response = await axios.post(`${API_URL}/login`, {
         email,
         motdepasse,
       });
  
       const token = response.data.access_token;
-      console.log("TOKEN:", token);
  
-      // TODO: sauvegarder le token
-      // await AsyncStorage.setItem("access_token", token);
+      // ✅ Sauvegarde du token JWT en local
+      await AsyncStorage.setItem("access_token", token);
+      await AsyncStorage.setItem("user_email", email);
  
       router.push("/(tabs)/Home");
  
     } catch (err: any) {
       const message =
-        err?.response?.data?.detail || "Nom ou mot de passe incorrect";
+        err?.response?.data?.detail || "Email ou mot de passe incorrect";
       setError(message);
       Alert.alert("Erreur", message);
     } finally {
       setLoading(false);
     }
   };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0d1b3e" />

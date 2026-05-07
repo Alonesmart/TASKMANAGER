@@ -3,6 +3,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import jwt
+from ..Schemas import UserLogin, Token
 
 from ..database import get_db, pwd_context
 from .. import models
@@ -14,19 +15,6 @@ SECRET_KEY                  = "changez_cette_cle_en_production_!!!"   # ⚠️ �
 ALGORITHM                   = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 MAX_TENTATIVES              = 5
-
-
-# ─── Schémas ──────────────────────────────────────────────────────────────────
-class UserLogin(BaseModel):
-    email:      EmailStr
-    motdepasse: str          # correspond au champ envoyé par le frontend React Native
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type:   str
-    message:      str
-
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 def create_access_token(email: str) -> str:

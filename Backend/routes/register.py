@@ -1,9 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends, status
-from pydantic import BaseModel, EmailStr, field_validator
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import jwt
-
+from ..Schemas import UserRegister, Token
 from ..database import get_db, pwd_context
 from .. import models
 
@@ -12,35 +11,6 @@ router = APIRouter()
 SECRET_KEY                  = "changez_cette_cle_en_production_!!!"
 ALGORITHM                   = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
-
-# ─── Schémas ──────────────────────────────────────────────────────────────────
-class UserRegister(BaseModel):
-    nom:               str
-    email:             EmailStr
-    phone:             str  = ""
-    motdepasse:        str
-    confirm_motdepasse: str
-
-    @field_validator("nom")
-    @classmethod
-    def nom_non_vide(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("Le nom ne peut pas être vide")
-        return v.strip()
-
-    @field_validator("motdepasse")
-    @classmethod
-    def motdepasse_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
-        return v
-
-
-class Token(BaseModel):
-    access_token: str
-    token_type:   str
-    message:      str
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────

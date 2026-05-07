@@ -4,29 +4,20 @@ from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
-
+from ..Schemas import ForgotPasswordRequest, ResetPasswordRequest
 from ..database import get_db, pwd_context
 from .. import models
 
 router = APIRouter()
 
-TOKEN_EXPIRE_MINUTES = 15
+TOKEN_EXPIRE_MINUTES = 1
 
+# Route POST /forgot-password 
 
-# ─── Schémas ──────────────────────────────────────────────────────────────────
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
-
-
-class ResetPasswordRequest(BaseModel):
-    token:            str
-    new_motdepasse:   str
-    confirm_motdepasse: str
-
-
-# ─── Route POST /forgot-password ──────────────────────────────────────────────
 @router.post("/forgot-password")
 def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+
+#  Demande de réinitialisation du mot de passe.
 
     user = db.query(models.User).filter(models.User.email == request.email).first()
 
