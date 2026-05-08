@@ -10,7 +10,17 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Start the backend server
+
+   ```bash
+   npm run start:server
+   # or
+   ./start_server.sh
+   ```
+
+   The server will be available at `http://192.168.43.23:8000`
+
+3. Start the app
 
    ```bash
    npx expo start

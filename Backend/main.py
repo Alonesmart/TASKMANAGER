@@ -9,10 +9,23 @@ from .database import Base, engine, get_db
 from . import models  # noqa: F401 — nécessaire pour que SQLAlchemy détecte les tables
 from .Schemas import UserResponse
 
-# ─── Création automatique des tables MySQL ─────────────────────────────────────
+#  Création automatique des tables MySQL
 Base.metadata.create_all(bind=engine)
 
-# ─── Application FastAPI ───────────────────────────────────────────────────────
+#  Assure la compatibilité de l'enum `role` avec les anciennes valeurs en base
+try:
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'chef_projet', 'personnel', 'collaborateur') "
+            "NOT NULL DEFAULT 'personnel'"
+        )
+        conn.exec_driver_sql(
+            "UPDATE users SET role='personnel' WHERE role='collaborateur'"
+        )
+except Exception:
+    pass
+
+#  Application FastAPI
 app = FastAPI(
     title="TaskManager API",
     description="API d'authentification — Login, Register, Reset Password",
@@ -21,22 +34,22 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ─── CORS (indispensable pour React Native) ────────────────────────────────────
+#  CORS (indispensable pour React Native) 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:*", "http://localhost:*"],
+    allow_origins=["http://192.168.43.23:8000:*", "http://localhost:*"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
-# ─── Routers ──────────────────────────────────────────────────────────────────
+# Routers
 app.include_router(login_router, tags=["Login"])
 app.include_router(register_router, tags=["Register"])
 app.include_router(forgot_router, tags=["Password"])
 
 
-# ─── Routes utilitaires ────────────────────────────────────────────────────────
+# ─── Routes utilitaires
 @app.get("/")
 def root():
     return {"status": "ok", "message": "TaskManager API en ligne !"}
