@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
-import { API_URL } from "../Root/API_URL";
+import { API_URL } from "@/constants/API_URL";
  
 
 export default function RegisterScreen() {
@@ -39,8 +39,21 @@ export default function RegisterScreen() {
  
   // ✅ Fonction d'inscription
   const handleRegister = async () => {
-    if (!nom || !motdepasse || !confirmMotdepasse) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPhone = phone.replace(/\s/g, "");
+
+    if (!nom.trim() || !normalizedEmail || !normalizedPhone || !motdepasse || !confirmMotdepasse) {
       Alert.alert("Erreur", "Remplissez tous les champs obligatoires");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError("Email invalide");
+      return;
+    }
+
+    if (!/^(\+237)?6[0-9]{8}$/.test(normalizedPhone)) {
+      setError("Numéro camerounais invalide. Exemple: +2376xxxxxxxx ou 6xxxxxxxx");
       return;
     }
  
@@ -59,9 +72,9 @@ export default function RegisterScreen() {
       setError("");
  
       const response = await axios.post(`${API_URL}/register`, {
-        nom,
-        email,
-        phone,
+        nom: nom.trim(),
+        email: normalizedEmail,
+        phone: normalizedPhone,
         motdepasse,
         confirm_motdepasse: confirmMotdepasse,
       });
@@ -73,11 +86,13 @@ export default function RegisterScreen() {
       await AsyncStorage.setItem("user_email", email);
  
       Alert.alert("Succès", "Compte créé avec succès !");
-      router.replace("/(tabs)/Home");
- 
+      router.replace("/(tabs)/Home/home");
+
     } catch (err: any) {
-      const message =
-        err?.response?.data?.detail || "Erreur lors de la création du compte";
+      const detail = err?.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail.map((item) => item?.msg).filter(Boolean).join("\n")
+        : detail || "Erreur lors de la création du compte";
       setError(message);
       Alert.alert("Erreur", message);
     } finally {

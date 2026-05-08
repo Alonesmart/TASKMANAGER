@@ -25,9 +25,10 @@ def create_access_token(email: str) -> str:
 #Route POST /login 
 @router.post("/login", response_model=Token)
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    email = str(credentials.email).strip().lower()
 
     # 1. Rechercher l'utilisateur par email
-    user = db.query(models.User).filter(models.User.email == credentials.email).first()
+    user = db.query(models.User).filter(models.User.email == email).first()
 
     if not user:
         raise HTTPException(

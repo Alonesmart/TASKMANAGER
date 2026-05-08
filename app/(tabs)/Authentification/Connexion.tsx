@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
-import { API_URL } from "../Root/API_URL";
+import { API_URL } from "@/constants/API_URL";
 
 export default function LoginScreen() {
   // ✅ Tous les hooks INSIDE le composant
@@ -34,7 +34,9 @@ export default function LoginScreen() {
 
   // ✅ Fonction de connexion corrigée
   const handleLogin = async () => {
-    if (!email || !motdepasse) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail || !motdepasse) {
       Alert.alert("Erreur", "Remplissez tous les champs");
       return;
     }
@@ -44,7 +46,7 @@ export default function LoginScreen() {
  
       // ✅ Correspond exactement au backend : POST /login
       const response = await axios.post(`${API_URL}/login`, {
-        email,
+        email: normalizedEmail,
         motdepasse,
       });
  
@@ -52,13 +54,15 @@ export default function LoginScreen() {
  
       // ✅ Sauvegarde du token JWT en local
       await AsyncStorage.setItem("access_token", token);
-      await AsyncStorage.setItem("user_email", email);
+      await AsyncStorage.setItem("user_email", normalizedEmail);
  
-      router.push("/(tabs)/Home");
+      router.replace("/(tabs)/Home/home");
  
     } catch (err: any) {
-      const message =
-        err?.response?.data?.detail || "Email ou mot de passe incorrect";
+      const detail = err?.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail.map((item) => item?.msg).filter(Boolean).join("\n")
+        : detail || err?.message || "Impossible de contacter le serveur";
       Alert.alert("Erreur", message);
     } finally {
       setLoading(false);

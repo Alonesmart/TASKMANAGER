@@ -20,7 +20,7 @@ class UserResponse(BaseModel):
 
 class UserLogin(BaseModel):
     email:      EmailStr
-    motdepasse: str          # correspond au champ envoyé par le frontend React Native
+    motdepasse: str          
 
 class Token(BaseModel):
     access_token: str

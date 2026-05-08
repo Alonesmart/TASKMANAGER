@@ -2,7 +2,11 @@ from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, Str
 from sqlalchemy.orm import relationship
 from .database import Base
 from datetime import datetime
+from datetime import timezone
 
+def _now_utc():
+    """Retourne l'heure UTC actuelle (compatible Python ≥ 3.12)."""
+    return datetime.now(timezone.utc) 
 
 class User(Base):
     __tablename__ = "users"
