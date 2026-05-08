@@ -58,7 +58,7 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Email ou mot de passe incorrect. "
-                   f"{'Compte bloqué.' if remaining <= 5 else f'{remaining} tentative(s) restante(s).'}",
+                   f"{'Compte bloqué.' if remaining <= 0 else f'{remaining} tentative(s) restante(s).'}",
         )
 
     # 5. Connexion réussie → réinitialiser le compteur

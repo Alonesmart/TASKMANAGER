@@ -35,14 +35,32 @@ export default function ForgotPasswordScreen() {
       setLoading(true);
  
       // ✅ Vrai appel API : POST /forgot-password
-      await axios.post(`${API_URL}/forgot-password`, {
+      const response = await axios.post(`${API_URL}/forgot-password`, {
         email: email.trim(),
       });
  
-      setSent(true);
+    // ✅ Le backend renvoie le reset_token en mode dev
+      const resetToken: string | undefined = response.data?.reset_token;
+ 
       Alert.alert(
         "Email envoyé",
-        `Un lien de réinitialisation a été envoyé à ${email}`
+        `Un lien de réinitialisation a été envoyé à ${email.trim()}.\n\nVous avez 30 minutes pour l'utiliser.`,
+        [
+          {
+            text: "Continuer",
+            onPress: () =>
+              // ✅ Navigation vers l'écran de reset avec l'email pré-rempli
+              // et le token si disponible (mode dev)
+              router.push({
+                pathname: "/(tabs)/Authentification/ResetPassword",
+                params: {
+                  email: email.trim(),
+                  // En prod le token arrive par email, en dev on le passe directement
+                  token: resetToken ?? "",
+                },
+              }),
+          },
+        ]
       );
     } catch (err: any) {
       const message =

@@ -1,4 +1,5 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react"; // ✅ un seul import React
@@ -65,13 +66,14 @@ export default function RegisterScreen() {
         confirm_motdepasse: confirmMotdepasse,
       });
  
-      const token = response.data.access_token;
-      console.log("TOKEN:", token);
+       const token = response.data.access_token;
  
-      // TODO: await AsyncStorage.setItem("access_token", token);
+        // Stockage du token et de l'email pour maintenir la session
+      await AsyncStorage.setItem("access_token", token);
+      await AsyncStorage.setItem("user_email", email);
  
       Alert.alert("Succès", "Compte créé avec succès !");
-      router.push("/(tabs)/Home");
+      router.replace("/(tabs)/Home");
  
     } catch (err: any) {
       const message =
@@ -84,14 +86,17 @@ export default function RegisterScreen() {
   };
 
   return (
+
     <View style={styles.container}>
+
       <Ellipse />
 
       <View style={styles.formContent}>
         <Text style={styles.title}>{t("auth.register_title")}</Text>
 
         <View style={styles.card}>
-        {/* ── Nom ── */}
+
+  {/* ── Nom ── */}
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
             <TextInput
@@ -123,7 +128,7 @@ export default function RegisterScreen() {
           </View>
  
 
-           {/* ── Téléphone ── */}
+  {/* ── Téléphone ── */}
           <View style={styles.inputContainer}>
             <Ionicons name="call-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
             <TextInput

@@ -16,6 +16,35 @@ export default function RootLayout() {
       }}
     >
       <Stack.Screen name="index" />
+
+      <Stack.Screen name="Connexion" options={{ headerShown: false }} />
+      
+      <Stack.Screen
+        name="RegisterScreen"
+        options={{
+          headerShown: true,
+          title: "Créer un compte",
+          headerBackTitle: "Retour",
+        }}
+      />
+ 
+      <Stack.Screen
+        name="ForgotPassword"
+        options={{
+          headerShown: true,
+          title: "Mot de passe oublié",
+          headerBackTitle: "Retour",
+        }}
+      />
+ 
+      <Stack.Screen
+        name="ResetPassword"
+        options={{
+          headerShown: true,
+          title: "Nouveau mot de passe",
+          headerBackTitle: "Retour",
+        }}
+      />
     </Stack>
   );
 }

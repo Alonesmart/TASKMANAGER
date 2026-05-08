@@ -10,7 +10,7 @@ from .. import models
 
 router = APIRouter()
 
-TOKEN_EXPIRE_MINUTES = 1
+TOKEN_EXPIRE_MINUTES = 30
 
 # Route POST /forgot-password 
 
@@ -50,7 +50,7 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
 
     return {
         "message": "Si cet email existe, un lien a été envoyé.",
-        # ⚠️ À retirer en production — uniquement pour les tests
+        #  À retirer en production — uniquement pour les tests
         "reset_token": raw_token,
     }
 
