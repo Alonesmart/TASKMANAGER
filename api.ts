@@ -1,6 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || '';
+import { getStorageItem } from '@/utils/storage';
+import { API_URL } from '@/constants/API_URL';
 
 export interface Task {
   task_id: string;
@@ -90,7 +89,7 @@ export interface DashboardStats {
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const token = await AsyncStorage.getItem('session_token');
+  const token = await getStorageItem('access_token');
   return token ? { 'Authorization': `Bearer ${token}` } : {};
 }
 

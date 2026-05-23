@@ -1,5 +1,4 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react"; // ✅ un seul import React
@@ -16,6 +15,7 @@ import {
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
 import { API_URL } from "@/constants/API_URL";
+import { setStorageItem } from "@/utils/storage";
  
 
 export default function RegisterScreen() {
@@ -82,8 +82,9 @@ export default function RegisterScreen() {
        const token = response.data.access_token;
  
         // Stockage du token et de l'email pour maintenir la session
-      await AsyncStorage.setItem("access_token", token);
-      await AsyncStorage.setItem("user_email", email);
+      await setStorageItem("access_token", token);
+      await setStorageItem("session_token", token);
+      await setStorageItem("user_email", normalizedEmail);
  
       Alert.alert("Succès", "Compte créé avec succès !");
       router.replace("/(tabs)/Home/home");

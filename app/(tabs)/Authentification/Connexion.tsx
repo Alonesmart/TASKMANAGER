@@ -1,5 +1,4 @@
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -18,6 +17,7 @@ import {
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
 import { API_URL } from "@/constants/API_URL";
+import { setStorageItem } from "@/utils/storage";
 
 export default function LoginScreen() {
   // ✅ Tous les hooks INSIDE le composant
@@ -40,7 +40,7 @@ export default function LoginScreen() {
       Alert.alert("Erreur", "Remplissez tous les champs");
       return;
     }
- 
+     console.log("Tentative de connexion avec les identifiants:");
     try {
       setLoading(true);
  
@@ -53,8 +53,9 @@ export default function LoginScreen() {
       const token = response.data.access_token;
  
       // ✅ Sauvegarde du token JWT en local
-      await AsyncStorage.setItem("access_token", token);
-      await AsyncStorage.setItem("user_email", normalizedEmail);
+      await setStorageItem("access_token", token);
+      await setStorageItem("session_token", token);
+      await setStorageItem("user_email", normalizedEmail);
  
       router.replace("/(tabs)/Home/home");
  
