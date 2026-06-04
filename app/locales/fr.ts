@@ -12,6 +12,7 @@ const fr = {
     password: "Mot de passe",
     forgot_password: "Mot de passe oublié ?",
     no_account: "Vous n'avez pas de compte ?",
+    email: "Email",
     sign_up: "S'inscrire",
     register_title: "Créer un compte",
     name: "Nom",

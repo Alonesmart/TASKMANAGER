@@ -12,7 +12,7 @@ import {
 import { Card, Divider, List, Switch } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setAppLanguage } from "../../i18n";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 const LANGUAGES = [
   { code: "fr", label: "Français" },

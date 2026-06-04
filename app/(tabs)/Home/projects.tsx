@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AppTheme, useAppTheme } from "../../../theme";
+import { AppTheme, useAppTheme } from "@/theme";
 import AddButton from "../../../components/AddButton";
 
 const createColors = (theme: AppTheme) => ({

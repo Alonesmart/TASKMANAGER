@@ -1,3 +1,4 @@
+import os
 import secrets
 from datetime import datetime, timedelta
 
@@ -50,8 +51,8 @@ def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db
 
     return {
         "message": "Si cet email existe, un lien a été envoyé.",
-        #  À retirer en production — uniquement pour les tests
-        "reset_token": raw_token,
+        # Uniquement en dev, idéalement via une variable d'environnement
+        "reset_token": raw_token if os.getenv("DEBUG", "true").lower() == "true" else None,
     }
 
 

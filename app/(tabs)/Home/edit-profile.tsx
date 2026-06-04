@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 export default function EditProfileScreen() {
   const router = useRouter();

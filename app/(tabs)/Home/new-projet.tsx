@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useRouter } from 'expo-router';
 import { useTranslation } from "react-i18next";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 type SimpleDatePickerProps = {
   label: string;

@@ -20,7 +20,7 @@ import {
   ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AppTheme, useAppTheme } from "../../../theme";
+import { AppTheme, useAppTheme } from "@/theme";
 
 const createMessageColors = (theme: AppTheme) => ({
   bg: theme.bg,

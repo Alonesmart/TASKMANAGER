@@ -21,6 +21,11 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# ─── Configuration Sécurité (JWT) ─────────────────────────────────────────────
+SECRET_KEY = os.getenv("SECRET_KEY", "changez_cette_cle_en_production_!!!")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
 # ─── Hachage des mots de passe ─────────────────────────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

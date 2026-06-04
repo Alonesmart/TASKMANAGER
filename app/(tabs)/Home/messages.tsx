@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import AddButton from "../../../components/AddButton";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 
 export default function Messages() {

@@ -12,6 +12,10 @@ class UserCreate(BaseModel):
     email: str
     motdepasse: str
 
+class UserUpdate(BaseModel):
+    nom: str
+    phone: str
+
 class UserResponse(BaseModel):
     id: int
     nom: str
@@ -26,6 +30,9 @@ class Token(BaseModel):
     access_token: str
     token_type:   str
     message:      str
+
+class TokenData(BaseModel):
+    email: str | None = None
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr

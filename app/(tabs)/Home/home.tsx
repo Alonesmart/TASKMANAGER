@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AddButton from "../../../components/AddButton";
-import { AppTheme, useAppTheme } from "../../../theme";
+import { AppTheme, useAppTheme } from "@/theme";
 
 const { width } = Dimensions.get("window");
 
@@ -89,7 +89,7 @@ function AnimatedCard({
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [delay, opacity, translateY]);
 
   return (
     <Animated.View style={[{ opacity, transform: [{ translateY }] }, style]}>
@@ -170,7 +170,7 @@ function ProgressBar({ percent, styles }: { percent: number; styles: ReturnType<
       delay: 400,
       useNativeDriver: false,
     }).start();
-  }, []);
+  }, [percent, width]);
 
   return (
     <View style={styles.track}>
@@ -249,8 +249,11 @@ export default function Home() {
                 <View style={styles.notifDot} />
               </TouchableOpacity>
               <View style={styles.avatarSmall}>
+              <TouchableOpacity activeOpacity={0.8} onPress={() => router.push("/(tabs)/Home/profile")}>
                 <Text style={styles.avatarSmallText}>R</Text>
+                </TouchableOpacity>
               </View>
+              
             </View>
           </AnimatedCard>
 

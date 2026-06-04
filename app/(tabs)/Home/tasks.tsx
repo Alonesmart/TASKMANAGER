@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import AddButton from "../../../components/AddButton";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminees";

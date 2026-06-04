@@ -1,8 +1,8 @@
+import { authService } from "@/services/authService";
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
-import axios from "axios";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -16,8 +16,6 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
-import { API_URL } from "@/constants/API_URL";
-import { setStorageItem } from "@/utils/storage";
 
 export default function LoginScreen() {
   // ✅ Tous les hooks INSIDE le composant
@@ -26,6 +24,17 @@ export default function LoginScreen() {
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
  
+  // ✅ Vérification automatique de la session au lancement
+  useEffect(() => {
+    const checkExistingAuth = async () => {
+      const authenticated = await authService.isAuthenticated();
+      if (authenticated) {
+        router.replace("/(tabs)/Home/home");
+      }
+    };
+    checkExistingAuth();
+  }, [router]);
+
   // ✅ States renommés selon la DB (nom / motdepasse)
   const [email, setEmail] = useState("");
   const [motdepasse, setMotdepasse] = useState("");
@@ -44,18 +53,8 @@ export default function LoginScreen() {
     try {
       setLoading(true);
  
-      // ✅ Correspond exactement au backend : POST /login
-      const response = await axios.post(`${API_URL}/login`, {
-        email: normalizedEmail,
-        motdepasse,
-      });
- 
-      const token = response.data.access_token;
- 
-      // ✅ Sauvegarde du token JWT en local
-      await setStorageItem("access_token", token);
-      await setStorageItem("session_token", token);
-      await setStorageItem("user_email", normalizedEmail);
+      // Utilisation du service centralisé
+      await authService.login(normalizedEmail, motdepasse);
  
       router.replace("/(tabs)/Home/home");
  
@@ -95,7 +94,7 @@ export default function LoginScreen() {
         {/* Email */}
         <View style={styles.inputContainer}>
           <TextInput
-            placeholder={t("Email")}
+            placeholder={t("auth.email")}
             placeholderTextColor={theme.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"
@@ -136,7 +135,7 @@ export default function LoginScreen() {
         {/* Mot de passe oublié */}
          <TouchableOpacity 
           onPress={() => router.push("/(tabs)/Authentification/ForgotPassword")}>
-          <Text style={styles.forgot}>{t("mot de passe oublié")}</Text>
+          <Text style={styles.forgot}>{t("auth.forgot_password")}</Text>
         </TouchableOpacity>
 
         {/* Lien inscription */}

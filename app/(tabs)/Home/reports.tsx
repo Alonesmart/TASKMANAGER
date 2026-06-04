@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AddButton from "../../../components/AddButton";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
 const T = {

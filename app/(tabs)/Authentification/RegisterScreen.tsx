@@ -1,5 +1,5 @@
+import { authService } from "@/services/authService";
 import { AntDesign, FontAwesome, Ionicons } from "@expo/vector-icons";
-import axios from "axios";
 import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react"; // ✅ un seul import React
 import { useTranslation } from "react-i18next";
@@ -14,8 +14,6 @@ import {
 } from "react-native";
 import Ellipse from "../../../components/Ellipse";
 import { useAppTheme } from "../../../theme";
-import { API_URL } from "@/constants/API_URL";
-import { setStorageItem } from "@/utils/storage";
  
 
 export default function RegisterScreen() {
@@ -71,20 +69,13 @@ export default function RegisterScreen() {
       setLoading(true);
       setError("");
  
-      const response = await axios.post(`${API_URL}/register`, {
+      await authService.register({
         nom: nom.trim(),
         email: normalizedEmail,
         phone: normalizedPhone,
         motdepasse,
         confirm_motdepasse: confirmMotdepasse,
       });
- 
-       const token = response.data.access_token;
- 
-        // Stockage du token et de l'email pour maintenir la session
-      await setStorageItem("access_token", token);
-      await setStorageItem("session_token", token);
-      await setStorageItem("user_email", normalizedEmail);
  
       Alert.alert("Succès", "Compte créé avec succès !");
       router.replace("/(tabs)/Home/home");
@@ -116,7 +107,7 @@ export default function RegisterScreen() {
           <View style={styles.inputContainer}>
             <Ionicons name="person-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
             <TextInput
-              placeholder={t("name")}
+              placeholder={t("auth.name")}
               placeholderTextColor={theme.textMuted}
               autoCapitalize="none"
               autoComplete="name"
@@ -131,7 +122,7 @@ export default function RegisterScreen() {
           <View style={styles.inputContainer}>
             <Ionicons name="mail-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
             <TextInput
-              placeholder={t("email")}
+              placeholder={t("auth.email")}
               placeholderTextColor={theme.textMuted}
               autoCapitalize="none"
               autoComplete="email"
@@ -148,7 +139,7 @@ export default function RegisterScreen() {
           <View style={styles.inputContainer}>
             <Ionicons name="call-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
             <TextInput
-              placeholder={t("phone")}
+              placeholder={t("auth.phone")}
               placeholderTextColor={theme.textMuted}
               keyboardType="phone-pad"
               autoCapitalize="none"
@@ -164,7 +155,7 @@ export default function RegisterScreen() {
           <View style={styles.inputContainer}>
             <Ionicons name="lock-closed-outline" size={18} color={theme.textSecondary} style={styles.inputIcon} />
             <TextInput
-              placeholder={t("password")}
+              placeholder={t("auth.password")}
               placeholderTextColor={theme.textMuted}
               secureTextEntry={!showPassword}
               autoCapitalize="none"

@@ -3,7 +3,7 @@ import { Tabs } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, Text, View } from "react-native";
-import { useAppTheme } from "../../../theme";
+import { useAppTheme } from "@/theme";
 
 // ─── Tab Icon ──────────────────────────────────────────────────────────────────
 type TabIconProps = {

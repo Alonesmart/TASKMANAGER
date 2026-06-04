@@ -37,3 +37,18 @@ export const getStorageItem = async (key: string) => {
     return memoryStorage.get(key) ?? null;
   }
 };
+
+export const removeStorageItem = async (key: string) => {
+  memoryStorage.delete(key);
+
+  if (canUseLocalStorage()) {
+    globalThis.localStorage.removeItem(key);
+    return;
+  }
+
+  try {
+    await AsyncStorage.removeItem(key);
+  } catch (error) {
+    console.warn("AsyncStorage unavailable, removing from memory storage only.", error);
+  }
+};
