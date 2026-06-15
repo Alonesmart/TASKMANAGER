@@ -46,6 +46,11 @@ async def startup_event():
             except Exception:
                 pass
 
+            try:
+                await conn.exec_driver_sql("ALTER TABLE projets ADD COLUMN priorite VARCHAR(50) DEFAULT 'moyenne'")
+            except Exception:
+                pass
+
             # Mise à jour de l'enum role
             await conn.exec_driver_sql(
                 "ALTER TABLE users MODIFY COLUMN role ENUM('admin', 'chef_projet', 'personnel', 'collaborateur') "

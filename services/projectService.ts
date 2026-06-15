@@ -115,5 +115,13 @@ export const projectService = {
   async syncTeamMembers(idEquipe: number, userIds: number[]) {
     const response = await apiClient.put(`/api/v1/core/equipes/${idEquipe}/membres`, userIds);
     return response.data;
+  },
+
+  /**
+   * Récupère les statistiques globales pour le dashboard d'accueil
+   */
+  async getGlobalDashboard() {
+    const response = await apiClient.get('/api/v1/core/dashboard/global');
+    return response.data;
   }
 };

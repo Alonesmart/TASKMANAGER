@@ -243,42 +243,17 @@ export default function Home() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [projects, tasks] = await Promise.all([
-        projectService.getProjects(),
-        projectService.getTasks(),
-      ]);
-
-      const activeCount = projects.filter((p: any) => p.statut === 'actif').length;
-      
-      const myTasksCount = tasks.length;
-      const urgentCount = tasks.filter((t: any) => t.priorite === 'haute' && t.statut !== 'terminees').length;
-      
-      const today = new Date();
-      const nextWeek = new Date();
-      nextWeek.setDate(today.getDate() + 7);
-      const dueSoonCount = tasks.filter((t: any) => {
-        if (!t.echeance || t.statut === 'terminees') return false;
-        const d = new Date(t.echeance);
-        return d >= today && d <= nextWeek;
-      }).length;
-
-      const completedCount = tasks.filter((t: any) => t.statut === 'terminees').length;
-      const inProgressCount = tasks.filter((t: any) => t.statut === 'en_cours').length;
-      const todoCount = tasks.filter((t: any) => t.statut === 'a_faire').length;
-
-      const totalProgression = tasks.length > 0 
-        ? Math.round(tasks.reduce((acc: number, t: any) => acc + (t.progression || 0), 0) / tasks.length)
-        : 0;
+      const data = await projectService.getGlobalDashboard();
       
       setStats({
-        activeProjects: activeCount,
-        myTasks: myTasksCount,
-        urgentTasks: urgentCount,
-        dueSoonTasks: dueSoonCount,
-        completedTasks: completedCount,
-        inProgressTasks: inProgressCount,
-        todoTasks: todoCount,
-        progression: totalProgression,
+        activeProjects: data.active_projects,
+        myTasks: data.my_tasks,
+        urgentTasks: data.urgent_tasks,
+        dueSoonTasks: data.due_soon_tasks,
+        completedTasks: data.completed_tasks,
+        inProgressTasks: data.in_progress_tasks,
+        todoTasks: data.todo_tasks,
+        progression: data.progression,
       });
     } catch (error) {
       console.error('Error fetching home data:', error);

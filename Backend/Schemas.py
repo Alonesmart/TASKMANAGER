@@ -64,6 +64,7 @@ class ProjetBase(BaseModel):
     description: Optional[str] = None
     dateDebut: date
     dateFin: date
+    priorite: str = Field("moyenne", max_length=50)
     statut: str = Field("actif", max_length=50)
     etat: str = Field("en_cours", max_length=50)
     id_administrateur: Optional[int] = None
@@ -139,12 +140,25 @@ class AppartientEquipeOut(AppartientEquipeCreate):
         from_attributes = True
 
 # --- Dashboard Schemas ---
-class DashboardOut(BaseModel):
+class DashboardResponse(BaseModel):
     total_taches: int
     taches_terminees: int
     taches_en_cours: int
     taches_en_retard: int
     progression_globale: float
+
+    class Config:
+        from_attributes = True
+
+class GlobalDashboardOut(BaseModel):
+    active_projects: int
+    my_tasks: int
+    urgent_tasks: int
+    due_soon_tasks: int
+    completed_tasks: int
+    in_progress_tasks: int
+    todo_tasks: int
+    progression: float
 
     class Config:
         from_attributes = True

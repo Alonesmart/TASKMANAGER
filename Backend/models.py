@@ -65,6 +65,7 @@ class Projet(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     dateDebut: Mapped[date] = mapped_column(Date)
     dateFin: Mapped[date] = mapped_column(Date)
+    priorite: Mapped[str] = mapped_column(String(50), default="moyenne")
     statut: Mapped[str] = mapped_column(String(50), default="actif")
     etat: Mapped[str] = mapped_column(String(50), default="en_cours")
     id_administrateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
