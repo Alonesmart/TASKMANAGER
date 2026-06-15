@@ -1,22 +1,22 @@
+import { projectService } from '@/services/projectService';
+import { AppTheme, useAppTheme } from "@/theme";
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
 } from 'react-native';
-import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { AppTheme, useAppTheme } from "@/theme";
 import AddButton from "../../../components/AddButton";
-import { projectService } from '@/services/projectService';
 
 const createColors = (theme: AppTheme) => ({
   bg: theme.bg,
@@ -43,6 +43,7 @@ type Project = {
   dateDebut: string;
   dateFin: string;
   statut: string;
+  priorite: string;
   etat: string;
   id_administrateur: number | null;
   couleur?: string;
@@ -160,9 +161,10 @@ const ProjectCard = ({
       )}
 
       {/* Badges */}
-      {!!project.statut && (
+      {(!!project.statut || !!project.priorite) && (
         <View style={styles.badgesRow}>
-          <StatutBadge value={project.statut} colors={colors} badgeStyles={badgeStyles} />
+          {!!project.priorite && <PrioriteBadge value={project.priorite} colors={colors} badgeStyles={badgeStyles} />}
+          {!!project.statut && <StatutBadge value={project.statut} colors={colors} badgeStyles={badgeStyles} />}
         </View>
       )}
     </View>

@@ -1,8 +1,12 @@
+import { projectService } from '@/services/projectService';
+import { userService } from '@/services/userService';
+import { useAppTheme } from "@/theme";
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Modal,
   ScrollView,
   StatusBar,
@@ -11,11 +15,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAppTheme } from "@/theme";
-import { projectService } from '@/services/projectService';
 
 type SimpleDatePickerProps = {
   label: string;
@@ -176,11 +178,21 @@ export default function NouvelleTacheScreen() {
   const [projets, setProjets] = useState<{id_projet: number, titre: string}[]>([]);
   const [loadingProjets, setLoadingProjets] = useState(true);
   const [saving, setSaving] = useState(false);
-  const membres   = ['user', 'Raoul', 'Fred', 'Alice', 'Bob'];
+  const [membres, setMembres] = useState<{id: number, nom: string}[]>([]);
 
   useEffect(() => {
     fetchProjets();
+    fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const data = await userService.getUsers();
+      setMembres(data);
+    } catch (error) {
+      console.error('Error fetching users for tasks:', error);
+    }
+  };
 
   const fetchProjets = async () => {
     setLoadingProjets(true);
@@ -203,8 +215,8 @@ export default function NouvelleTacheScreen() {
     { key: 'haute',   label: t("tasks.priority_high"),   bg: COLORS.danger  },
   ];
 
-  const toggleAssigne = (m: string) =>
-    setAssignes(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+  const toggleAssigne = (name: string) =>
+    setAssignes(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
 
   const fmtDate = (d: Date | null) =>
     d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` : '';
@@ -327,14 +339,14 @@ export default function NouvelleTacheScreen() {
         {/* Assigné à */}
         <Text style={styles.label}>{t("new_tasks.assigned_to_label")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-          {membres.map((m) => (
+          {membres.map((user) => (
             <TouchableOpacity
-              key={m}
-              style={[styles.chip, assignes.includes(m) && styles.chipActive]}
-              onPress={() => toggleAssigne(m)}
+              key={user.id}
+              style={[styles.chip, assignes.includes(user.nom) && styles.chipActive]}
+              onPress={() => toggleAssigne(user.nom)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.chipTxt, assignes.includes(m) && styles.chipTxtActive]}>{m}</Text>
+              <Text style={[styles.chipTxt, assignes.includes(user.nom) && styles.chipTxtActive]}>{user.nom}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>

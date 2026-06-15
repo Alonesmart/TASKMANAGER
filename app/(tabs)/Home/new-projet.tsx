@@ -1,24 +1,24 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
+  ActivityIndicator,
+  Alert,
+  Modal,
   ScrollView,
   StatusBar,
-  Modal,
-  Alert,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTranslation } from "react-i18next";
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { useAppTheme } from "@/theme";
 import { projectService } from '@/services/projectService';
 import { userService } from '@/services/userService';
+import { useAppTheme } from "@/theme";
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from "react-i18next";
 
 type SimpleDatePickerProps = {
   label: string;
@@ -285,11 +285,8 @@ const formatDate = (d: Date | null) =>
   d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "";
 
 const formatDateForAPI = (d: Date | null) => {
-  if (!d) return "";
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  if (!d) return null;
+  return d.toISOString().split('T')[0];
 };
 
   const toggleMembre = (u: User) => {
@@ -312,6 +309,16 @@ const formatDateForAPI = (d: Date | null) => {
       return;
     }
 
+    if (dateFin < dateDebut) {
+      Alert.alert(t("common.error"), t("new_project.dates_invalid") || "La date de fin doit être après la date de début");
+      return;
+    }
+
+    if (!chef) {
+      Alert.alert(t("common.error"), t("new_project.chef_required") || "Veuillez sélectionner un chef de projet");
+      return;
+    }
+
     setLoading(true);
     try {
       const projectData = {
@@ -320,6 +327,7 @@ const formatDateForAPI = (d: Date | null) => {
         dateDebut: formatDateForAPI(dateDebut),
         dateFin: formatDateForAPI(dateFin),
         statut: statut || 'actif',
+        priorite: priorite || 'moyenne',
         id_administrateur: chef?.id
       };
 

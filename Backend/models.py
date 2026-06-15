@@ -72,7 +72,7 @@ class Projet(Base):
 
     administrateur: Mapped["User"] = relationship("User")
     taches: Mapped[List["Tache"]] = relationship("Tache", back_populates="projet", cascade="all, delete-orphan")
-    equipe: Mapped[Optional["Equipe"]] = relationship("Equipe", back_populates="projet", cascade="all, delete-orphan", uselist=False)
+    equipe: Mapped[Optional["Equipe"]] = relationship("Equipe", back_populates="projet", cascade="all, delete-orphan", uselist=False, lazy="selectin")
     documents: Mapped[List["Document"]] = relationship("Document", back_populates="projet", cascade="all, delete-orphan")
     rapports: Mapped[List["Rapport"]] = relationship("Rapport", back_populates="projet", cascade="all, delete-orphan")
     reunions: Mapped[List["Reunion"]] = relationship("Reunion", back_populates="projet", cascade="all, delete-orphan")
@@ -91,7 +91,7 @@ class Tache(Base):
     etat: Mapped[str] = mapped_column(String(50), default="active")
     id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"))
 
-    projet: Mapped["Projet"] = relationship("Projet", back_populates="taches")
+    projet: Mapped["Projet"] = relationship("Projet", back_populates="taches", lazy="selectin")
     commentaires: Mapped[List["Commentaire"]] = relationship("Commentaire", back_populates="tache", cascade="all, delete-orphan")
     notifications_declenchees: Mapped[List["Notification"]] = relationship("Notification", back_populates="tache_origine")
 

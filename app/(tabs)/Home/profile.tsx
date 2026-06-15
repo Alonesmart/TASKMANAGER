@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
@@ -8,42 +8,98 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { Card, Divider, List, Switch } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setAppLanguage } from "../../i18n";
 import { useAppTheme } from "@/theme";
+import { userService } from "@/services/userService";
+import { authService } from "@/services/authService";
 
 const LANGUAGES = [
   { code: "fr", label: "Français" },
   { code: "en", label: "English" },
 ] as const;
 
+interface UserProfile {
+  id: number;
+  nom: string;
+  email: string;
+  role: string;
+  phone?: string;
+}
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { t, i18n: i18nInstance } = useTranslation();
   const { theme, mode: themeMode, setMode: setThemeMode, isDark } = useAppTheme();
   const [showLanguageOptions, setShowLanguageOptions] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  
   const styles = useMemo(() => createStyles(theme), [theme]);
   const selectedLanguage: (typeof LANGUAGES)[number]["code"] =
     i18nInstance.resolvedLanguage?.startsWith("en") ? "en" : "fr";
+
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  const fetchUser = async () => {
+    try {
+      const userData = await userService.getCurrentUser();
+      setUser(userData);
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      Alert.alert(t("common.error"), t("profile.fetch_error") || "Erreur lors de la récupération du profil");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLanguageSelect = async (language: (typeof LANGUAGES)[number]["code"]) => {
     setShowLanguageOptions(false);
     await setAppLanguage(language);
   };
 
-  const Avatar = ({ name }: { name: string }) => (
+  const handleLogout = () => {
+    Alert.alert(
+      t("profile.logout"),
+      t("profile.logout_confirm") || "Voulez-vous vraiment vous déconnecter ?",
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("profile.logout"),
+          style: "destructive",
+          onPress: async () => {
+            await authService.logout();
+            router.replace("/(tabs)/Authentification");
+          },
+        },
+      ]
+    );
+  };
+
+  const Avatar = ({ name, role }: { name: string; role: string }) => (
     <View style={styles.avatarWrapper}>
       <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{name.charAt(0).toLowerCase()}</Text>
+        <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
       </View>
       <Text style={styles.userName}>{name}</Text>
       <View style={styles.badge}>
-        <Text style={styles.badgeText}>{t("profile.admin")}</Text>
+        <Text style={styles.badgeText}>{role.toUpperCase()}</Text>
       </View>
     </View>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -51,7 +107,7 @@ export default function ProfileScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Avatar name="raoul forba" />
+          <Avatar name={user?.nom || "User"} role={user?.role || "User"} />
         </View>
 
        
@@ -104,7 +160,7 @@ export default function ProfileScreen() {
               title={t("profile.logout")}
               titleStyle={styles.logoutText}
               left={(props) => <List.Icon {...props} icon="logout" color={theme.logoutColor} />}
-              onPress={() => Alert.alert(t("profile.logout"), t("profile.logout_pending"))}
+              onPress={handleLogout}
             />
           </List.Section>
         </Card>

@@ -17,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AddButton from "../../../components/AddButton";
 import { AppTheme, useAppTheme } from "@/theme";
 import { projectService } from "@/services/projectService";
+import { userService } from "@/services/userService";
 
 const { width } = Dimensions.get("window");
 
@@ -225,6 +226,8 @@ export default function Home() {
   const styles = useMemo(() => createStyles(T), [T]);
 
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<{ nom: string; initials: string } | null>(null);
+  const [user, setUser] = useState<{nom: string, role: string} | null>(null);
   const [stats, setStats] = useState({
     activeProjects: 0,
     myTasks: 0,
@@ -238,6 +241,20 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
+    fetchUser();
+    const init = async () => {
+      setLoading(true);
+      try {
+        const userData = await userService.getCurrentUser();
+        setUser(userData);
+        await fetchData();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
   const fetchData = async () => {
@@ -259,6 +276,18 @@ export default function Home() {
       console.error('Error fetching home data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUser = async () => {
+    try {
+      const userData = await userService.getCurrentUser();
+      setUser({
+        nom: userData.nom,
+        initials: userData.nom ? userData.nom.charAt(0).toUpperCase() : "?"
+      });
+    } catch (error) {
+      console.error('Error fetching user for home:', error);
     }
   };
 
@@ -284,7 +313,8 @@ export default function Home() {
                 <Text style={styles.hello}>{t("home.hello")}</Text>
                 <Ionicons name="hand-right-outline" size={16} color={T.orange} />
               </View>
-              <Text style={styles.name}>Raoul Forba</Text>
+              <Text style={styles.name}>{user?.nom || "..."}</Text>
+              <Text style={styles.name}>{user?.nom || "Utilisateur"}</Text>
             </View>
             <View style={styles.headerRight}>
               {loading && <ActivityIndicator size="small" color={T.accent} style={{ marginRight: 8 }} />}
@@ -292,9 +322,12 @@ export default function Home() {
                 <Ionicons name="notifications-outline" size={20} color={T.textPrimary} />
                 <View style={styles.notifDot} />
               </TouchableOpacity>
+              <TouchableOpacity style={styles.avatarSmall} activeOpacity={0.8} onPress={() => router.push("/(tabs)/Home/profile")}>
+                <Text style={styles.avatarSmallText}>{user?.initials || "U"}</Text>
+              </TouchableOpacity>
               <View style={styles.avatarSmall}>
               <TouchableOpacity activeOpacity={0.8} onPress={() => router.push("/(tabs)/Home/profile")}>
-                <Text style={styles.avatarSmallText}>R</Text>
+                <Text style={styles.avatarSmallText}>{user?.nom?.charAt(0).toUpperCase() || "U"}</Text>
                 </TouchableOpacity>
               </View>
               
@@ -348,6 +381,15 @@ export default function Home() {
                   onPress={() => router.push("/(tabs)/Home/new-message")}
                   styles={styles}
                 />
+                {user?.role === 'admin' && (
+                  <QuickAction
+                    icon="folder-open-outline"
+                    label={t("home.project")}
+                    color={T.green}
+                    onPress={() => router.push("/(tabs)/Home/new-projet")}
+                    styles={styles}
+                  />
+                )}
                 <QuickAction
                   icon="folder-open-outline"
                   label={t("home.project")}

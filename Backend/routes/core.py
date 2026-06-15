@@ -50,7 +50,14 @@ async def create_project(
     db.add(db_project) # type: ignore
     await db.commit()
     await db.refresh(db_project)
-    return db_project
+    
+    # Refetch with relations for serialization
+    result = await db.execute(
+        select(models.Projet)
+        .options(selectinload(models.Projet.equipe))
+        .filter(models.Projet.id_projet == db_project.id_projet)
+    )
+    return result.scalar_one()
 
 @router.get("/projets/{id_projet}", response_model=Schemas.ProjetOut)
 async def get_project(
@@ -111,8 +118,14 @@ async def update_project(
         setattr(db_project, key, value)
     
     await db.commit()
-    await db.refresh(db_project)
-    return db_project
+    
+    # Refetch with relations for serialization
+    result = await db.execute(
+        select(models.Projet)
+        .options(selectinload(models.Projet.equipe))
+        .filter(models.Projet.id_projet == id_projet)
+    )
+    return result.scalar_one()
 
 @router.delete("/projets/{id_projet}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
@@ -360,7 +373,7 @@ async def create_team(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Une équipe existe déjà pour ce projet")
 
     team_data = team.model_dump()
-    team_data["id_personnel_createur"] = current_user.id
+    # team_data["id_personnel_createur"] = current_user.id # Removed as per schema
     
     db_team = models.Equipe(**team_data)
     db.add(db_team) # type: ignore
@@ -449,7 +462,7 @@ async def sync_team_members(
     # 2. Vérifier les permissions (admin du projet ou créateur de l'équipe)
     project_result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == team.id_projet))
     project = project_result.scalar_one_or_none()
-    if not project or (project.id_administrateur != current_user.id and team.id_personnel_createur != current_user.id):
+    if not project or (project.id_administrateur != current_user.id):
         raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de gérer les membres de cette équipe")
 
     # 3. Supprimer tous les membres actuels
