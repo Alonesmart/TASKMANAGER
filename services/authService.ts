@@ -1,6 +1,5 @@
-import axios from 'axios';
-import { API_URL } from '@/constants/API_URL';
 import { setStorageItem, getStorageItem, removeStorageItem } from '@/utils/storage';
+import apiClient from './apiClient';
 
 export interface AuthResponse {
   access_token: string;
@@ -13,7 +12,7 @@ export const authService = {
    * Connecte l'utilisateur et stocke le token
    */
   async login(email: string, motdepasse: string): Promise<AuthResponse> {
-    const response = await axios.post(`${API_URL}/login`, { email, motdepasse });
+    const response = await apiClient.post('/login', { email, motdepasse });
     const data = response.data;
     
     if (data.access_token) {
@@ -27,7 +26,7 @@ export const authService = {
    * Inscrit un nouvel utilisateur
    */
   async register(userData: any): Promise<AuthResponse> {
-    const response = await axios.post(`${API_URL}/register`, userData);
+    const response = await apiClient.post('/register', userData);
     const data = response.data;
 
     if (data.access_token) {

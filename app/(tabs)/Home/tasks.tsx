@@ -10,23 +10,28 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "@/theme";
+import { projectService } from "@/services/projectService";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminees";
 
 type Task = {
-  id:          string;
+  id_tache:    number;
   titre:       string;
-  description: string;
-  projet:      string;
-  assignes:    string[];
-  priorite:    "faible" | "moyenne" | "haute";
-  statut:      TaskFilter;
-  dateDebut:   string;
-  dateFin:     string;
+  description: string | null;
+  priorite:    string;
+  statut:      string;
+  status:      string;
+  echeance:    string | null;
+  progression: number;
+  id_projet:   number;
+  projet?: {
+    titre: string;
+  };
 };
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
@@ -37,10 +42,19 @@ const FILTERS = [
   { id: "terminees", color: "#ef4444" },
 ] as const;
 
-const STATUT_NEXT: Record<string, TaskFilter> = {
+const STATUT_NEXT: Record<string, string> = {
   a_faire:   "en_cours",
   en_cours:  "terminees",
   terminees: "a_faire",
+};
+
+const mapStatutToStatus = (s: string) => {
+  switch (s) {
+    case 'a_faire': return 'todo';
+    case 'en_cours': return 'in_progress';
+    case 'terminees': return 'completed';
+    default: return 'todo';
+  }
 };
 
 // ─── TASK CARD ─────────────────────────────────────────────────────────────────
@@ -51,12 +65,12 @@ const TaskCard = ({
   onDelete,
 }: {
   task: Task;
-  onChangeStatut: (id: string, s: TaskFilter) => void;
+  onChangeStatut: (id: number, s: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
 }) => {
   const { t } = useTranslation();
-  const PRIORITE_CONFIG = {
+  const PRIORITE_CONFIG: Record<string, { label: string; color: string }> = {
     faible: { label: t("tasks.priority_low"), color: "#4caf50" },
     moyenne: { label: t("tasks.priority_medium"), color: "#f5a623" },
     haute: { label: t("tasks.priority_high"), color: "#e53935" },
@@ -66,7 +80,7 @@ const TaskCard = ({
     en_cours: { label: t("tasks.status_in_progress"), color: "#06b6d4" },
     terminees: { label: t("tasks.status_done"), color: "#ef4444" },
   };
-  const prio = PRIORITE_CONFIG[task.priorite] ?? PRIORITE_CONFIG.faible;
+  const prio = PRIORITE_CONFIG[task.priorite] ?? PRIORITE_CONFIG.moyenne;
   const statut = STATUT_CONFIG[task.statut] ?? STATUT_CONFIG.a_faire;
 
   return (
@@ -93,7 +107,7 @@ const TaskCard = ({
       {/* Statut cliquable */}
       <TouchableOpacity
         style={[cStyles.statutBtn, { backgroundColor: statut.color + "22", borderColor: statut.color }]}
-        onPress={() => onChangeStatut(task.id, STATUT_NEXT[task.statut] ?? "a_faire")}
+        onPress={() => onChangeStatut(task.id_tache, STATUT_NEXT[task.statut] ?? "a_faire")}
         activeOpacity={0.8}
       >
         <Text style={[cStyles.statutTxt, { color: statut.color }]}>{statut.label}</Text>
@@ -102,26 +116,15 @@ const TaskCard = ({
 
       {/* Meta */}
       <View style={cStyles.metaRow}>
-        {!!task.projet && (
-          <View style={cStyles.metaItem}>
-            <Ionicons name="folder-outline" size={11} color="#4a6b8a" />
-            <Text style={cStyles.metaTxt}>{task.projet}</Text>
-          </View>
-        )}
-        {task.assignes.length > 0 && (
-          <View style={cStyles.metaItem}>
-            <Ionicons name="people-outline" size={11} color="#4a6b8a" />
-            <Text style={cStyles.metaTxt}>
-              {task.assignes.slice(0, 2).join(", ")}
-              {task.assignes.length > 2 ? ` +${task.assignes.length - 2}` : ""}
-            </Text>
-          </View>
-        )}
-        {(!!task.dateDebut || !!task.dateFin) && (
+        <View style={cStyles.metaItem}>
+          <Ionicons name="folder-outline" size={11} color="#4a6b8a" />
+          <Text style={cStyles.metaTxt}>{task.projet?.titre || `Projet ID: ${task.id_projet}`}</Text>
+        </View>
+        {!!task.echeance && (
           <View style={cStyles.metaItem}>
             <Ionicons name="calendar-outline" size={11} color="#4a6b8a" />
             <Text style={cStyles.metaTxt}>
-              {task.dateDebut || "?"} → {task.dateFin || "?"}
+              Échéance: {new Date(task.echeance).toLocaleDateString()}
             </Text>
           </View>
         )}
@@ -159,27 +162,11 @@ export default function Tasks() {
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  // ── Récupération des params envoyés par router.push depuis nouvelle-tache ──
-  const params = useLocalSearchParams<{
-    tacheCreated?:     string;
-    tacheUpdated?:     string;
-    tacheMode?:        string;
-    tacheId?:          string;
-    tacheKey?:         string;
-    tacheTitre?:       string;
-    tacheDescription?: string;
-    tacheProjet?:      string;
-    tacheAssignes?:    string;
-    tachePriorite?:    string;
-    tacheStatut?:      string;
-    tacheDateDebut?:   string;
-    tacheDateFin?:     string;
-  }>();
-
   const [activeFilter, setActiveFilter] = useState<TaskFilter>("toutes");
   const [search, setSearch]             = useState("");
   const [tasks, setTasks]               = useState<Task[]>([]);
-  const lastHandled                     = useRef<string | null>(null);
+  const [loading, setLoading]           = useState(true);
+
   const filters = [
     { id: "toutes" as const, label: t("tasks.filter_all"), color: "#3b82f6" },
     { id: "a_faire" as const, label: t("tasks.filter_todo"), color: "#f59e0b" },
@@ -189,55 +176,38 @@ export default function Tasks() {
 
   const activeColor = filters.find(f => f.id === activeFilter)?.color ?? "#3b82f6";
 
-  // ── Intégration de la nouvelle tâche reçue via router.push ────────────────
   useEffect(() => {
-    if (!params.tacheTitre) return;
-    const isCreate = params.tacheCreated === "1";
-    const isUpdate = params.tacheUpdated === "1";
-    if (!isCreate && !isUpdate) return;
+    fetchTasks();
+  }, []);
 
-    const sig = `${isCreate ? "create" : "update"}-${params.tacheId ?? params.tacheKey}-${params.tacheTitre}`;
-    if (lastHandled.current === sig) return;
-    lastHandled.current = sig;
+  const fetchTasks = async () => {
+    setLoading(true);
+    try {
+      const data = await projectService.getTasks();
+      setTasks(data);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const incoming: Task = {
-      id:          (params.tacheId ?? params.tacheKey ?? Date.now().toString()) as string,
-      titre:       params.tacheTitre       as string,
-      description: params.tacheDescription ?? "",
-      projet:      params.tacheProjet      ?? "",
-      assignes:    params.tacheAssignes    ? params.tacheAssignes.split(",").filter(Boolean) : [],
-      priorite:    (params.tachePriorite   as Task["priorite"]) ?? "faible",
-      statut:      (params.tacheStatut     as TaskFilter)        ?? "a_faire",
-      dateDebut:   params.tacheDateDebut   ?? "",
-      dateFin:     params.tacheDateFin     ?? "",
-    };
+  const handleChangeStatut = async (id: number, statut: string) => {
+    try {
+      const status = mapStatutToStatus(statut);
+      await projectService.updateTask(id, { statut, status });
+      setTasks(prev => prev.map(t => t.id_tache === id ? { ...t, statut, status } : t));
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      Alert.alert(t("common.error"), "Impossible de mettre à jour le statut");
+    }
+  };
 
-    setTasks(prev => {
-      if (isCreate) return [incoming, ...prev];
-
-      let found = false;
-      const updated = prev.map(task => {
-        if (task.id !== incoming.id) return task;
-        found = true;
-        return incoming;
-      });
-      return found ? updated : [incoming, ...prev];
-    });
-  }, [
-    params.tacheCreated, params.tacheKey, params.tacheTitre,
-    params.tacheUpdated, params.tacheMode, params.tacheId,
-    params.tacheDescription, params.tacheProjet, params.tacheAssignes,
-    params.tachePriorite, params.tacheStatut,
-    params.tacheDateDebut, params.tacheDateFin,
-  ]);
-
-  const handleChangeStatut = (id: string, statut: TaskFilter) =>
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, statut } : t));
 
   // ── Filtrage ──────────────────────────────────────────────────────────────
   const filtered = tasks.filter(t => {
     const q           = search.trim().toLowerCase();
-    const matchSearch = !q || t.titre.toLowerCase().includes(q) || t.description.toLowerCase().includes(q);
+    const matchSearch = !q || t.titre.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q));
     const matchFilter = activeFilter === "toutes" || t.statut === activeFilter;
     return matchSearch && matchFilter;
   });
@@ -250,15 +220,13 @@ export default function Tasks() {
       pathname: "/(tabs)/Home/new-tasks" as any,
       params: {
         tacheMode: "edit",
-        tacheId: task.id,
+        tacheId: task.id_tache.toString(),
         tacheTitre: task.titre,
-        tacheDescription: task.description,
-        tacheProjet: task.projet,
-        tacheAssignes: task.assignes.join(","),
+        tacheDescription: task.description ?? "",
+        tacheProjet: task.id_projet.toString(),
         tachePriorite: task.priorite,
         tacheStatut: task.statut,
-        tacheDateDebut: task.dateDebut,
-        tacheDateFin: task.dateFin,
+        tacheDateFin: task.echeance ?? "",
       },
     });
   };
@@ -272,7 +240,15 @@ export default function Tasks() {
         {
           text: t("common.delete"),
           style: "destructive",
-          onPress: () => setTasks(prev => prev.filter(item => item.id !== task.id)),
+          onPress: async () => {
+            try {
+              await projectService.deleteTask(task.id_tache);
+              setTasks(prev => prev.filter(item => item.id_tache !== task.id_tache));
+            } catch (error) {
+              console.error('Error deleting task:', error);
+              Alert.alert(t("common.error"), "Impossible de supprimer la tâche");
+            }
+          },
         },
       ]
     );
@@ -287,6 +263,9 @@ export default function Tasks() {
           <Text style={styles.eyebrow}>{t("tasks.my_tasks")}</Text>
           <Text style={styles.headerTitle}>{t("tasks.title")}</Text>
         </View>
+        <TouchableOpacity onPress={fetchTasks} style={{ padding: 8 }}>
+           <Ionicons name="refresh" size={24} color={theme.accent} />
+        </TouchableOpacity>
         {tasks.length > 0 && (
           <View style={styles.headerBadge}>
             <Text style={styles.headerBadgeTxt}>{tasks.length}</Text>

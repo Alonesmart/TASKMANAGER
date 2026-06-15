@@ -11,9 +11,11 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/theme";
+import { projectService } from '@/services/projectService';
 
 type SimpleDatePickerProps = {
   label: string;
@@ -166,13 +168,35 @@ export default function NouvelleTacheScreen() {
   const [priorite, setPriorite]       = useState<'faible' | 'moyenne' | 'haute'>(initialPriorite);
   const [dateDebut, setDateDebut]     = useState<Date | null>(parseDate(params.tacheDateDebut));
   const [dateFin, setDateFin]         = useState<Date | null>(parseDate(params.tacheDateFin));
-  const [projet, setProjet]           = useState(params.tacheProjet ?? 'Efice');
+  const [idProjet, setIdProjet]       = useState<number | null>(params.tacheProjet ? Number(params.tacheProjet) : null);
   const [assignes, setAssignes]       = useState<string[]>(
-    params.tacheAssignes ? params.tacheAssignes.split(',').filter(Boolean) : ['user', 'Raoul', 'Fred']
+    params.tacheAssignes ? params.tacheAssignes.split(',').filter(Boolean) : []
   );
 
-  const projets   = ['Efice', 'Mobile App', 'API'];
+  const [projets, setProjets] = useState<{id_projet: number, titre: string}[]>([]);
+  const [loadingProjets, setLoadingProjets] = useState(true);
+  const [saving, setSaving] = useState(false);
   const membres   = ['user', 'Raoul', 'Fred', 'Alice', 'Bob'];
+
+  useEffect(() => {
+    fetchProjets();
+  }, []);
+
+  const fetchProjets = async () => {
+    setLoadingProjets(true);
+    try {
+      const data = await projectService.getProjects();
+      setProjets(data);
+      if (data.length > 0 && !idProjet) {
+        setIdProjet(data[0].id_projet);
+      }
+    } catch (error) {
+      console.error('Error fetching projects for task:', error);
+    } finally {
+      setLoadingProjets(false);
+    }
+  };
+
   const priorites: { key: 'faible' | 'moyenne' | 'haute'; label: string; bg: string }[] = [
     { key: 'faible',  label: t("tasks.priority_low"),  bg: COLORS.success },
     { key: 'moyenne', label: t("tasks.priority_medium"), bg: COLORS.warning },
@@ -185,28 +209,53 @@ export default function NouvelleTacheScreen() {
   const fmtDate = (d: Date | null) =>
     d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` : '';
 
-  // ── Sauvegarder → router.push vers tasks avec tous les params ─────────────
-  const handleSauvegarder = () => {
-    if (!titre.trim()) { alert(t("new_tasks.title_required")); return; }
+  const formatDateForAPI = (d: Date | null) => {
+    if (!d) return null;
+    return d.toISOString().split('T')[0];
+  };
 
-    router.push({
-      pathname: '/(tabs)/Home/tasks' as any,
-      params: {
-        tacheCreated:     isEditMode ? undefined : '1',
-        tacheUpdated:     isEditMode ? '1' : undefined,
-        tacheMode:        isEditMode ? 'edit' : 'create',
-        tacheId:          isEditMode ? (params.tacheId ?? Date.now().toString()) : undefined,
-        tacheKey:         !isEditMode ? Date.now().toString() : undefined,
-        tacheTitre:       titre.trim(),
-        tacheDescription: description.trim(),
-        tacheProjet:      projet,
-        tacheAssignes:    assignes.join(','),
-        tachePriorite:    priorite,
-        tacheStatut:      isEditMode ? (params.tacheStatut ?? 'a_faire') : 'a_faire',
-        tacheDateDebut:   fmtDate(dateDebut),
-        tacheDateFin:     fmtDate(dateFin),
-      },
-    });
+  const mapStatutToStatus = (s: string) => {
+    switch (s) {
+      case 'a_faire': return 'todo';
+      case 'en_cours': return 'in_progress';
+      case 'terminees': return 'completed';
+      default: return 'todo';
+    }
+  };
+
+  // ── Sauvegarder → API call ──────────────────────────────────────────────
+  const handleSauvegarder = async () => {
+    if (!titre.trim()) { Alert.alert(t("common.error"), t("new_tasks.title_required")); return; }
+    if (!idProjet) { Alert.alert(t("common.error"), "Veuillez sélectionner un projet"); return; }
+
+    setSaving(true);
+    try {
+      const currentStatut = isEditMode ? (params.tacheStatut ?? 'a_faire') : 'a_faire';
+      const taskData = {
+        titre: titre.trim(),
+        description: description.trim(),
+        priorite: priorite,
+        statut: currentStatut,
+        status: mapStatutToStatus(currentStatut),
+        echeance: formatDateForAPI(dateFin),
+        id_projet: idProjet,
+        progression: isEditMode ? 0 : 0, // Placeholder
+      };
+
+      if (isEditMode && params.tacheId) {
+        await projectService.updateTask(Number(params.tacheId), taskData);
+      } else {
+        await projectService.createTask(taskData);
+      }
+
+      Alert.alert(t("common.success"), isEditMode ? "Tâche mise à jour" : "Tâche créée");
+      router.back();
+    } catch (error: any) {
+      console.error('Error saving task:', error);
+      Alert.alert(t("common.error"), error.response?.data?.detail || "Erreur lors de la sauvegarde");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -219,8 +268,13 @@ export default function NouvelleTacheScreen() {
           <Ionicons name="chevron-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.title}>{isEditMode ? t("common.edit") : t("new_tasks.title")}</Text>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSauvegarder} activeOpacity={0.8}>
-          <Text style={styles.saveTxt}>{t("common.save")}</Text>
+        <TouchableOpacity 
+          style={[styles.saveBtn, saving && { opacity: 0.7 }]} 
+          onPress={handleSauvegarder} 
+          disabled={saving}
+          activeOpacity={0.8}
+        >
+          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveTxt}>{t("common.save")}</Text>}
         </TouchableOpacity>
       </View>
 
@@ -251,18 +305,24 @@ export default function NouvelleTacheScreen() {
 
         {/* Projet */}
         <Text style={styles.label}>{t("new_tasks.project_label")}</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-          {projets.map((p) => (
-            <TouchableOpacity
-              key={p}
-              style={[styles.chip, projet === p && styles.chipActive]}
-              onPress={() => setProjet(p)}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.chipTxt, projet === p && styles.chipTxtActive]}>{p}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {loadingProjets ? (
+          <ActivityIndicator size="small" color={COLORS.accent} style={{ alignSelf: 'flex-start', marginBottom: 20 }} />
+        ) : projets.length === 0 ? (
+          <Text style={[styles.label, { color: COLORS.danger, marginBottom: 20 }]}>Aucun projet disponible. Créez d'abord un projet.</Text>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+            {projets.map((p) => (
+              <TouchableOpacity
+                key={p.id_projet}
+                style={[styles.chip, idProjet === p.id_projet && styles.chipActive]}
+                onPress={() => setIdProjet(p.id_projet)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.chipTxt, idProjet === p.id_projet && styles.chipTxtActive]}>{p.titre}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Assigné à */}
         <Text style={styles.label}>{t("new_tasks.assigned_to_label")}</Text>

@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const memoryStorage = new Map<string, string>();
@@ -15,9 +15,11 @@ export const setStorageItem = async (key: string, value: string) => {
   }
 
   try {
-    await AsyncStorage.setItem(key, value);
+    if (Platform.OS !== "web") {
+      await SecureStore.setItemAsync(key, value);
+    }
   } catch (error) {
-    console.warn("AsyncStorage unavailable, using memory storage.", error);
+    console.warn("SecureStore unavailable, using memory storage.", error);
   }
 };
 
@@ -27,13 +29,17 @@ export const getStorageItem = async (key: string) => {
   }
 
   try {
-    const value = await AsyncStorage.getItem(key);
+    let value = null;
+    if (Platform.OS !== "web") {
+      value = await SecureStore.getItemAsync(key);
+    }
+    
     if (value !== null) {
       memoryStorage.set(key, value);
     }
     return value;
   } catch (error) {
-    console.warn("AsyncStorage unavailable, reading memory storage.", error);
+    console.warn("SecureStore unavailable, reading memory storage.", error);
     return memoryStorage.get(key) ?? null;
   }
 };
@@ -47,8 +53,10 @@ export const removeStorageItem = async (key: string) => {
   }
 
   try {
-    await AsyncStorage.removeItem(key);
+    if (Platform.OS !== "web") {
+      await SecureStore.deleteItemAsync(key);
+    }
   } catch (error) {
-    console.warn("AsyncStorage unavailable, removing from memory storage only.", error);
+    console.warn("SecureStore unavailable, removing from memory storage only.", error);
   }
 };

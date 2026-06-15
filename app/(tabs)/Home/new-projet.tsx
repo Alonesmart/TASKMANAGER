@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,12 +8,17 @@ import {
   ScrollView,
   StatusBar,
   Modal,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from "react-i18next";
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useAppTheme } from "@/theme";
+import { projectService } from '@/services/projectService';
+import { userService } from '@/services/userService';
 
 type SimpleDatePickerProps = {
   label: string;
@@ -24,9 +29,11 @@ type SimpleDatePickerProps = {
   t: (key: string, options?: any) => any;
 };
 
-type ProjectManager = {
-  id: string;
+type User = {
+  id: number;
   nom: string;
+  email: string;
+  role: string;
   initiale: string;
 };
 
@@ -60,7 +67,7 @@ const SimpleDatePicker = ({ label, value, onChange, styles, colors, t }: SimpleD
   return (
     <>
       <TouchableOpacity style={styles.dateBtn} onPress={() => setShow(true)} activeOpacity={0.8}>
-        <Text style={styles.dateBtnIcon}>📅</Text>
+        <MaterialIcons name="calendar-today" size={20} color={colors.accent} />
         <Text style={[styles.dateBtnText, !value && { color: colors.textDim }]}>
           {formatDate(value)}
         </Text>
@@ -131,6 +138,9 @@ const SimpleDatePicker = ({ label, value, onChange, styles, colors, t }: SimpleD
 // ─── NOUVEAU PROJET SCREEN ─────────────────────────────────────────────────────
 export default function NouveauProjetScreen() {
   const router = useRouter();
+  const { id, edit } = useLocalSearchParams();
+  const isEditing = edit === 'true' && !!id;
+
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const COLORS = useMemo(
@@ -154,62 +164,235 @@ export default function NouveauProjetScreen() {
 
   const [nom, setNom]                 = useState('');
   const [description, setDescription] = useState('');
-  const [membres, setMembres]         = useState<string[]>([]);
+  const [membres, setMembres]         = useState<User[]>([]);
   const [dateDebut, setDateDebut]     = useState<Date | null>(null);
   const [dateFin, setDateFin]         = useState<Date | null>(null);
   const [priorite, setPriorite]       = useState<ProjectPriority | null>(null);
   const [statut, setStatut]           = useState<ProjectStatus | null>(null);
-  const [chef, setChef]               = useState<ProjectManager | null>(null);
+  const [chef, setChef]               = useState<User | null>(null);
   const [couleur, setCouleur]         = useState<string | null>(null);
   const [icone, setIcone]             = useState<string | null>(null);
   const [chefModal, setChefModal]     = useState(false);
+  const [membresModal, setMembresModal] = useState(false);
+  const [loading, setLoading]         = useState(false);
+  const [fetching, setFetching]       = useState(false);
+  const [users, setUsers]             = useState<User[]>([]);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [teamId, setTeamId]           = useState<number | null>(null);
+
+  useEffect(() => {
+    const init = async () => {
+      await fetchUsers();
+      if (!isEditing) {
+        await fetchCurrentUser();
+      }
+    };
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (isEditing && users.length > 0) {
+      fetchProjectDetails();
+    }
+  }, [id, users]);
+
+  const fetchUsers = async () => {
+    try {
+      const data = await userService.getUsers();
+      const processedUsers = data.map((u: any) => ({
+        ...u,
+        initiale: u.nom ? u.nom.charAt(0).toUpperCase() : '?'
+      }));
+      setUsers(processedUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const me = await userService.getCurrentUser();
+      if (me) {
+        const processedMe = {
+          ...me,
+          initiale: me.nom ? me.nom.charAt(0).toUpperCase() : '?'
+        };
+        setChef(processedMe);
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!userSearchQuery.trim()) return users;
+    return users.filter(u => 
+      u.nom.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
+      u.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+    );
+  }, [users, userSearchQuery]);
+
+  const fetchProjectDetails = async () => {
+    setFetching(true);
+    try {
+      const project = await projectService.getProjectById(parseInt(id as string));
+      
+      if (project) {
+        setNom(project.titre);
+        setDescription(project.description || '');
+        setDateDebut(new Date(project.dateDebut));
+        setDateFin(new Date(project.dateFin));
+        setStatut(project.statut);
+        
+        // Trouver le chef
+        if (project.id_administrateur) {
+          const foundChef = users.find(u => u.id === project.id_administrateur);
+          if (foundChef) setChef(foundChef);
+        }
+
+        // Charger les membres de l'équipe
+        if (project.equipe) {
+          setTeamId(project.equipe.id_equipe);
+          const teamMembers = await projectService.getTeamMembers(project.equipe.id_equipe);
+          const processedMembers = teamMembers.map((u: any) => ({
+            ...u,
+            initiale: u.nom ? u.nom.charAt(0).toUpperCase() : '?'
+          }));
+          setMembres(processedMembers);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching project details:', error);
+      Alert.alert(t("common.error"), "Impossible de charger les détails du projet");
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const priorites = [
-    { key: 'haute',   label: t("new_project.priority_high"),   color: COLORS.danger,  icon: '🔴' },
-    { key: 'moyenne', label: t("new_project.priority_medium"), color: COLORS.warning, icon: '🟡' },
-    { key: 'basse',   label: t("new_project.priority_low"),   color: COLORS.success, icon: '🟢' },
+    { key: 'haute',   label: t("new_project.priority_high"),   color: COLORS.danger,  icon: 'flag' },
+    { key: 'moyenne', label: t("new_project.priority_medium"), color: COLORS.warning, icon: 'flag' },
+    { key: 'basse',   label: t("new_project.priority_low"),   color: COLORS.success, icon: 'flag' },
   ] as const;
 
   const statuts = [
-    { key: 'actif',   label: t("new_project.status_active"),    color: COLORS.success, icon: '▶' },
-    { key: 'pause',   label: t("new_project.status_paused"), color: COLORS.pause,   icon: '⏸' },
-    { key: 'termine', label: t("new_project.status_finished"),  color: COLORS.accent,  icon: '✓' },
+    { key: 'actif',   label: t("new_project.status_active"),    color: COLORS.success, icon: 'play-arrow' },
+    { key: 'pause',   label: t("new_project.status_paused"), color: COLORS.pause,   icon: 'pause' },
+    { key: 'termine', label: t("new_project.status_finished"),  color: COLORS.accent,  icon: 'check' },
   ] as const;
-
-  const chefsList = [
-    { id: '1', nom: 'Alice Martin',  initiale: 'A' },
-    { id: '2', nom: 'Bob Dupont',    initiale: 'B' },
-    { id: '3', nom: 'Claire Durand', initiale: 'C' },
-    { id: '4', nom: 'David Leroy',   initiale: 'D' },
-  ];
 
 const formatDate = (d: Date | null) =>
   d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "";
 
+const formatDateForAPI = (d: Date | null) => {
+  if (!d) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+  const toggleMembre = (u: User) => {
+    if (membres.find(m => m.id === u.id)) {
+      setMembres(membres.filter(m => m.id !== u.id));
+    } else {
+      setMembres([...membres, u]);
+    }
+  };
+
   // ── Sauvegarder → retour vers ProjetsScreen avec les données en params ──────
-  const handleSauvegarder = () => {
+  const handleSauvegarder = async () => {
     if (!nom.trim()) {
-      alert(t("new_project.project_name_required"));
+      Alert.alert(t("common.error"), t("new_project.project_name_required"));
       return;
     }
 
-    router.back();
+    if (!dateDebut || !dateFin) {
+      Alert.alert(t("common.error"), t("new_project.dates_required") || "Dates are required");
+      return;
+    }
 
-    // On repasse à la route parente avec les params du nouveau projet
-    router.setParams({
-      created:            '1',
-      key:                Date.now().toString(),
-      projectName:        nom.trim(),
-      projectDescription: description.trim(),
-      projectPriorite:    priorite  ?? '',
-      projectStatut:      statut    ?? '',
-      projectChef:        chef?.nom ?? '',
-      projectDateDebut:   formatDate(dateDebut),
-      projectDateFin:     formatDate(dateFin),
-      projectCouleur:     couleur   ?? '',
-      projectIcone:       icone     ?? '',
-    });
+    setLoading(true);
+    try {
+      const projectData = {
+        titre: nom.trim(),
+        description: description.trim(),
+        dateDebut: formatDateForAPI(dateDebut),
+        dateFin: formatDateForAPI(dateFin),
+        statut: statut || 'actif',
+        id_administrateur: chef?.id
+      };
+
+      if (isEditing) {
+        await projectService.updateProject(parseInt(id as string), projectData);
+        
+        // Mise à jour des membres de l'équipe si l'équipe existe
+        if (teamId) {
+          await projectService.syncTeamMembers(teamId, membres.map(m => m.id));
+        }
+        
+        Alert.alert(t("common.success"), t("new_project.update_success") || "Projet mis à jour avec succès");
+      } else {
+        const newProject = await projectService.createProject(projectData);
+        
+        // 2. Création de l'équipe associée (seulement à la création)
+        const team = await projectService.createTeam({
+          nom: `Équipe ${nom.trim()}`,
+          description: `Équipe automatique pour le projet ${nom.trim()}`,
+          id_projet: newProject.id_projet
+        });
+
+        // 3. Ajout des membres à l'équipe
+        if (membres.length > 0) {
+          await Promise.all(membres.map(m => projectService.addMember(team.id_equipe, m.id)));
+        }
+
+        Alert.alert(t("common.success"), t("new_project.create_success") || "Projet créé avec succès");
+      }
+      
+      router.back();
+    } catch (error: any) {
+      console.error('Error saving project:', error);
+      const errorMsg = error.response?.data?.detail || t("new_project.create_error") || "Failed to save project";
+      Alert.alert(t("common.error"), errorMsg);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleDelete = async () => {
+    Alert.alert(
+      t("common.confirm") || "Confirmation",
+      t("projects.delete_confirm") || "Voulez-vous vraiment supprimer ce projet ?",
+      [
+        { text: t("common.cancel") || "Annuler", style: "cancel" },
+        { 
+          text: t("common.delete") || "Supprimer", 
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await projectService.deleteProject(parseInt(id as string));
+              router.back();
+            } catch (error: any) {
+              console.error('Error deleting project:', error);
+              Alert.alert("Erreur", error.response?.data?.detail || "Impossible de supprimer le projet");
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  if (fetching) {
+    return (
+      <View style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.accent} />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -218,11 +401,20 @@ const formatDate = (d: Date | null) =>
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>‹</Text>
+          <Ionicons name="chevron-back" size={28} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>{t("new_project.title")}</Text>
-        <TouchableOpacity style={styles.sauvegarderButton} onPress={handleSauvegarder} activeOpacity={0.8}>
-          <Text style={styles.sauvegarderText}>{t("common.save")}</Text>
+        <Text style={styles.title}>{isEditing ? t("projects.edit_title") || "Modifier Projet" : t("new_project.title")}</Text>
+        <TouchableOpacity 
+          style={[styles.sauvegarderButton, loading && { opacity: 0.7 }]} 
+          onPress={handleSauvegarder} 
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={styles.sauvegarderText}>{isEditing ? t("common.update") || "Modifier" : t("common.save")}</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -269,29 +461,44 @@ const formatDate = (d: Date | null) =>
         </TouchableOpacity>
 
         {/* Chef Modal */}
-        <Modal visible={chefModal} transparent animationType="slide">
+        <Modal visible={chefModal} transparent animationType="slide" onRequestClose={() => setChefModal(false)}>
           <View style={styles.modalOverlay}>
             <View style={styles.listModal}>
               <Text style={styles.listModalTitle}>{t("new_project.project_manager_modal_title")}</Text>
-              {chefsList.map((c) => (
-                <TouchableOpacity
-                  key={c.id}
-                  style={[styles.listModalItem, chef?.id === c.id && styles.listModalItemActive]}
-                  onPress={() => { setChef(c); setChefModal(false); }}
-                >
-                  <View style={styles.chefAvatar}>
-                    <Text style={styles.chefAvatarText}>{c.initiale}</Text>
-                  </View>
-                  <Text style={styles.listModalItemText}>{c.nom}</Text>
-                  {chef?.id === c.id && <Text style={{ color: COLORS.accent, fontSize: 16 }}>✓</Text>}
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity style={styles.listModalClose} onPress={() => setChefModal(false)}>
+              
+              <TextInput
+                style={[styles.textInput, { marginBottom: 12 }]}
+                placeholder={t("new_project.search_placeholder")}
+                placeholderTextColor={COLORS.textDim}
+                value={userSearchQuery}
+                onChangeText={setUserSearchQuery}
+              />
+
+              <ScrollView style={{ maxHeight: 300 }}>
+                {filteredUsers.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[styles.listModalItem, chef?.id === c.id && styles.listModalItemActive]}
+                    onPress={() => { setChef(c); setChefModal(false); setUserSearchQuery(''); }}
+                  >
+                    <View style={styles.chefAvatar}>
+                      <Text style={styles.chefAvatarText}>{c.initiale}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listModalItemText}>{c.nom}</Text>
+                      <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>{c.email}</Text>
+                    </View>
+                    {chef?.id === c.id && <Text style={{ color: COLORS.accent, fontSize: 16 }}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity style={styles.listModalClose} onPress={() => { setChefModal(false); setUserSearchQuery(''); }}>
                 <Text style={styles.listModalCloseText}>{t("new_project.close")}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </Modal>
+
 
         {/* ── Priorité ────────────────────────────────────────────────────── */}
         <Text style={styles.fieldLabel}>{t("new_project.priority_label")}</Text>
@@ -307,7 +514,11 @@ const formatDate = (d: Date | null) =>
               onPress={() => setPriorite(p.key)}
               activeOpacity={0.8}
             >
-              <Text style={styles.chipIcon}>{p.icon}</Text>
+              <MaterialIcons 
+                name={p.icon as any} 
+                size={16} 
+                color={priorite === p.key ? '#fff' : p.color} 
+              />
               <Text style={[styles.chipLabel, priorite === p.key && styles.chipLabelActive]}>
                 {p.label}
               </Text>
@@ -329,9 +540,16 @@ const formatDate = (d: Date | null) =>
               onPress={() => setStatut(s.key)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.chipLabel, statut === s.key && styles.chipLabelActive]}>
-                {s.icon}  {s.label}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <MaterialIcons 
+                  name={s.icon as any} 
+                  size={16} 
+                  color={statut === s.key ? '#fff' : s.color} 
+                />
+                <Text style={[styles.chipLabel, statut === s.key && styles.chipLabelActive]}>
+                  {s.label}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
         </View>
@@ -347,22 +565,75 @@ const formatDate = (d: Date | null) =>
         <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
           {t("new_project.team_members_label")} ({membres.length})
         </Text>
-        <TouchableOpacity style={styles.addMemberBtn} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.addMemberBtn} activeOpacity={0.7} onPress={() => setMembresModal(true)}>
           <Text style={styles.addMemberIcon}>+</Text>
           <Text style={styles.addMemberText}>{t("new_project.add_member")}</Text>
         </TouchableOpacity>
 
-        {membres.map((m, i) => (
-          <View key={i} style={styles.memberItem}>
-            <View style={styles.memberAvatar}>
-              <Text style={styles.memberAvatarText}>{m.charAt(0).toUpperCase()}</Text>
+        {/* Membres Modal */}
+        <Modal visible={membresModal} transparent animationType="slide" onRequestClose={() => setMembresModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.listModal}>
+              <Text style={styles.listModalTitle}>{t("new_project.team_members_label")}</Text>
+              
+              <TextInput
+                style={[styles.textInput, { marginBottom: 12 }]}
+                placeholder={t("new_project.search_placeholder")}
+                placeholderTextColor={COLORS.textDim}
+                value={userSearchQuery}
+                onChangeText={setUserSearchQuery}
+              />
+
+              <ScrollView style={{ maxHeight: 300 }}>
+                {filteredUsers.map((u) => {
+                  const isSelected = membres.find(m => m.id === u.id);
+                  return (
+                    <TouchableOpacity
+                      key={u.id}
+                      style={[styles.listModalItem, isSelected && styles.listModalItemActive]}
+                      onPress={() => toggleMembre(u)}
+                    >
+                      <View style={styles.chefAvatar}>
+                        <Text style={styles.chefAvatarText}>{u.initiale}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.listModalItemText}>{u.nom}</Text>
+                        <Text style={{ color: COLORS.textMuted, fontSize: 11 }}>{u.email}</Text>
+                      </View>
+                      {isSelected && <Text style={{ color: COLORS.accent, fontSize: 16 }}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <TouchableOpacity style={styles.listModalClose} onPress={() => { setMembresModal(false); setUserSearchQuery(''); }}>
+                <Text style={styles.listModalCloseText}>{t("new_project.confirm")}</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.memberName}>{m}</Text>
-            <TouchableOpacity onPress={() => setMembres(membres.filter((_, idx) => idx !== i))}>
-              <Text style={styles.memberRemove}>✕</Text>
+          </View>
+        </Modal>
+
+        {membres.map((m, i) => (
+          <View key={m.id} style={styles.memberItem}>
+            <View style={styles.memberAvatar}>
+              <Text style={styles.memberAvatarText}>{m.initiale}</Text>
+            </View>
+            <Text style={styles.memberName}>{m.nom}</Text>
+            <TouchableOpacity onPress={() => setMembres(membres.filter(u => u.id !== m.id))}>
+              <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
         ))}
+
+        {isEditing && (
+          <TouchableOpacity 
+            style={styles.deleteProjectBtn} 
+            onPress={handleDelete}
+            disabled={loading}
+          >
+            <Ionicons name="trash-outline" size={20} color="#fff" />
+            <Text style={styles.deleteProjectText}>{t("common.delete_project") || "Supprimer le projet"}</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 50 }} />
       </ScrollView>
@@ -401,27 +672,6 @@ StyleSheet.create({
 
   body:       { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   fieldLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600', marginBottom: 8 },
-
-  // Couleur & Icône
-  colorIconCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20,
-    backgroundColor: COLORS.card, borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  projectPreview:     { width: 62, height: 62, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  projectPreviewIcon: { fontSize: 28 },
-  colorDot: {
-    width: 28, height: 28, borderRadius: 14, marginRight: 8,
-    borderWidth: 2, borderColor: 'transparent',
-  },
-  colorDotSelected: { borderColor: '#fff', transform: [{ scale: 1.2 }] },
-  iconeChip: {
-    width: 36, height: 36, borderRadius: 10, marginRight: 6,
-    backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: 'transparent',
-  },
-  iconeChipSelected: { borderColor: COLORS.accent, backgroundColor: '#1a3a50' },
-  iconeText: { fontSize: 18 },
 
   // Inputs
   textInput: {
@@ -557,4 +807,11 @@ StyleSheet.create({
   memberAvatarText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   memberName:       { flex: 1, color: COLORS.text, fontSize: 14 },
   memberRemove:     { color: COLORS.textMuted, fontSize: 16 },
+
+  deleteProjectBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: '#f44336', paddingVertical: 14, borderRadius: 12,
+    marginTop: 30, marginBottom: 10,
+  },
+  deleteProjectText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

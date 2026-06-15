@@ -12,10 +12,8 @@ import {
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
 import { useAppTheme } from "@/theme";
-import { API_URL } from "@/constants/API_URL";
-import { getStorageItem } from "@/utils/storage";
+import apiClient from "@/services/apiClient";
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -34,10 +32,7 @@ export default function EditProfileScreen() {
 
   const fetchUserProfile = async () => {
     try {
-      const token = await getStorageItem("access_token");
-      const response = await axios.get(`${API_URL}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get("/users/me");
       setNom(response.data.nom);
       setPhone(response.data.phone);
     } catch (error) {
@@ -55,11 +50,9 @@ export default function EditProfileScreen() {
 
     try {
       setSaving(true);
-      const token = await getStorageItem("access_token");
-      await axios.put(
-        `${API_URL}/users/me`,
-        { nom: nom.trim(), phone: phone.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
+      await apiClient.put(
+        "/users/me",
+        { nom: nom.trim(), phone: phone.trim() }
       );
       Alert.alert("Succès", "Profil mis à jour !");
       router.back();

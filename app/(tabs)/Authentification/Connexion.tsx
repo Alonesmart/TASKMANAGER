@@ -49,16 +49,29 @@ export default function LoginScreen() {
       Alert.alert("Erreur", "Remplissez tous les champs");
       return;
     }
-     console.log("Tentative de connexion avec les identifiants:");
+     console.log("Tentative de connexion avec:", normalizedEmail);
     try {
       setLoading(true);
+      console.log("Appel authService.login...");
  
       // Utilisation du service centralisé
-      await authService.login(normalizedEmail, motdepasse);
+      const result = await authService.login(normalizedEmail, motdepasse);
+      console.log("Connexion réussie, résultat:", result);
  
       router.replace("/(tabs)/Home/home");
  
     } catch (err: any) {
+      console.error("Erreur détaillée lors du login:", err);
+      if (err.response) {
+        console.error("Status:", err.response.status);
+        console.error("Data:", err.response.data);
+      } else if (err.request) {
+        console.error("Aucune réponse du serveur (problème réseau ou baseURL incorrecte)");
+        console.error("Request object:", err.request);
+      } else {
+        console.error("Message d'erreur:", err.message);
+      }
+
       const detail = err?.response?.data?.detail;
       const message = Array.isArray(detail)
         ? detail.map((item) => item?.msg).filter(Boolean).join("\n")

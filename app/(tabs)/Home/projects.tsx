@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from "react-i18next";
 import {
   StatusBar,
@@ -8,11 +8,15 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { AppTheme, useAppTheme } from "@/theme";
 import AddButton from "../../../components/AddButton";
+import { projectService } from '@/services/projectService';
 
 const createColors = (theme: AppTheme) => ({
   bg: theme.bg,
@@ -33,16 +37,16 @@ type ProjectColors = ReturnType<typeof createColors>;
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type Project = {
-  id: string;
-  name: string;
-  description: string;
-  priorite: string;
-  statut: string;
-  chef: string;
+  id_projet: number;
+  titre: string;
+  description: string | null;
   dateDebut: string;
   dateFin: string;
-  couleur: string;
-  icone: string;
+  statut: string;
+  etat: string;
+  id_administrateur: number | null;
+  couleur?: string;
+  icone?: string;
 };
 
 // ─── BADGE PRIORITÉ ────────────────────────────────────────────────────────────
@@ -99,52 +103,71 @@ const ProjectCard = ({
   colors,
   styles,
   badgeStyles,
+  onEdit,
+  onDelete,
 }: {
   project: Project;
   colors: ProjectColors;
   styles: ReturnType<typeof createStyles>;
   badgeStyles: ReturnType<typeof createBadgeStyles>;
-}) => (
-  <View style={styles.projectCard}>
-    {/* Top row: icone + couleur + nom */}
-    <View style={styles.cardHeader}>
-      <View style={[styles.cardIconBox, { backgroundColor: project.couleur || colors.border }]}>
-        <Text style={styles.cardIconText}>{project.icone || '📁'}</Text>
+  onEdit: (p: Project) => void;
+  onDelete: (id: number) => void;
+}) => {
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  };
+
+  return (
+    <View style={styles.projectCard}>
+      {/* Top row: icone + couleur + nom + actions */}
+      <View style={styles.cardHeader}>
+        <View style={[styles.cardIconBox, { backgroundColor: project.couleur || colors.accent }]}>
+          <Text style={styles.cardIconText}>{project.icone || '📁'}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.projectName} numberOfLines={1}>{project.titre}</Text>
+          {!!project.id_administrateur && (
+            <Text style={styles.projectChef}>👤 Admin ID: {project.id_administrateur}</Text>
+          )}
+        </View>
+        <View style={styles.actionButtons}>
+          <TouchableOpacity onPress={() => onEdit(project)} style={styles.actionBtn}>
+            <Ionicons name="pencil" size={18} color={colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onDelete(project.id_projet)} style={styles.actionBtn}>
+            <Ionicons name="trash" size={18} color={colors.danger} />
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.projectName} numberOfLines={1}>{project.name}</Text>
-        {!!project.chef && (
-          <Text style={styles.projectChef}>👤 {project.chef}</Text>
-        )}
-      </View>
+
+      {/* Description */}
+      {!!project.description && (
+        <Text style={styles.projectDesc} numberOfLines={2}>{project.description}</Text>
+      )}
+
+      {/* Dates */}
+      {(!!project.dateDebut || !!project.dateFin) && (
+        <View style={styles.datesRow}>
+          {!!project.dateDebut && (
+            <Text style={styles.dateText}>📅 Début : {formatDate(project.dateDebut)}</Text>
+          )}
+          {!!project.dateFin && (
+            <Text style={styles.dateText}>🏁 Fin : {formatDate(project.dateFin)}</Text>
+          )}
+        </View>
+      )}
+
+      {/* Badges */}
+      {!!project.statut && (
+        <View style={styles.badgesRow}>
+          <StatutBadge value={project.statut} colors={colors} badgeStyles={badgeStyles} />
+        </View>
+      )}
     </View>
-
-    {/* Description */}
-    {!!project.description && (
-      <Text style={styles.projectDesc} numberOfLines={2}>{project.description}</Text>
-    )}
-
-    {/* Dates */}
-    {(!!project.dateDebut || !!project.dateFin) && (
-      <View style={styles.datesRow}>
-        {!!project.dateDebut && (
-          <Text style={styles.dateText}>📅 Début : {project.dateDebut}</Text>
-        )}
-        {!!project.dateFin && (
-          <Text style={styles.dateText}>🏁 Fin : {project.dateFin}</Text>
-        )}
-      </View>
-    )}
-
-    {/* Badges */}
-    {(!!project.priorite || !!project.statut) && (
-      <View style={styles.badgesRow}>
-        <PrioriteBadge value={project.priorite} colors={colors} badgeStyles={badgeStyles} />
-        <StatutBadge value={project.statut} colors={colors} badgeStyles={badgeStyles} />
-      </View>
-    )}
-  </View>
-);
+  );
+};
 
 // ─── PROJETS SCREEN ────────────────────────────────────────────────────────────
 export default function ProjetsScreen() {
@@ -154,24 +177,11 @@ export default function ProjetsScreen() {
   const COLORS = React.useMemo(() => createColors(theme), [theme]);
   const styles = React.useMemo(() => createStyles(COLORS), [COLORS]);
   const badgeStyles = React.useMemo(() => createBadgeStyles(), []);
-  const params = useLocalSearchParams<{
-    created?:            string;
-    key?:                string;
-    projectName?:        string;
-    projectDescription?: string;
-    projectPriorite?:    string;
-    projectStatut?:      string;
-    projectChef?:        string;
-    projectDateDebut?:   string;
-    projectDateFin?:     string;
-    projectCouleur?:     string;
-    projectIcone?:       string;
-  }>();
 
   const [activeFilter, setActiveFilter] = useState('tous');
   const [search, setSearch]             = useState('');
   const [projects, setProjects]         = useState<Project[]>([]);
-  const lastHandled                     = useRef<string | null>(null);
+  const [loading, setLoading]           = useState(true);
 
   const filters = [
     { key: 'tous',      label: t("projects.filter_all") },
@@ -179,41 +189,59 @@ export default function ProjetsScreen() {
     { key: 'terminees', label: t("projects.filter_done") },
   ];
 
-  // ── Récupérer le nouveau projet depuis les params ──────────────────────────
   useEffect(() => {
-    if (params.created === '1' && params.projectName) {
-      const signature = `${params.key ?? 'no-key'}-${params.projectName}-${params.projectDescription ?? ''}`;
-      if (lastHandled.current === signature) return;
-      lastHandled.current = signature;
+    fetchProjects();
+  }, []);
 
-      setProjects((prev) => [
-        {
-          id:          params.key ?? Date.now().toString(),
-          name:        params.projectName as string,
-          description: params.projectDescription ?? '',
-          priorite:    params.projectPriorite    ?? '',
-          statut:      params.projectStatut      ?? '',
-          chef:        params.projectChef        ?? '',
-          dateDebut:   params.projectDateDebut   ?? '',
-          dateFin:     params.projectDateFin     ?? '',
-          couleur:     params.projectCouleur     ?? '',
-          icone:       params.projectIcone       ?? '',
-        },
-        ...prev,
-      ]);
+  const fetchProjects = async () => {
+    setLoading(true);
+    try {
+      const data = await projectService.getProjects();
+      setProjects(data);
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [
-    params.created, params.key,
-    params.projectName, params.projectDescription,
-    params.projectPriorite, params.projectStatut,
-    params.projectChef, params.projectDateDebut,
-    params.projectDateFin, params.projectCouleur, params.projectIcone,
-  ]);
+  };
+
+  const handleDelete = async (id: number) => {
+    Alert.alert(
+      t("common.confirm") || "Confirmation",
+      t("projects.delete_confirm") || "Voulez-vous vraiment supprimer ce projet ?",
+      [
+        { text: t("common.cancel") || "Annuler", style: "cancel" },
+        { 
+          text: t("common.delete") || "Supprimer", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await projectService.deleteProject(id);
+              fetchProjects();
+            } catch (error: any) {
+              console.error('Error deleting project:', error);
+              Alert.alert("Erreur", error.response?.data?.detail || "Impossible de supprimer le projet");
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleEdit = (project: Project) => {
+    router.push({
+      pathname: "/(tabs)/Home/new-projet",
+      params: { 
+        id: project.id_projet.toString(),
+        edit: 'true'
+      }
+    });
+  };
 
   // ── Filtrage par recherche + filtre statut ─────────────────────────────────
   const filteredProjects = projects.filter((p) => {
     const q = search.trim().toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q);
+    const matchSearch = !q || p.titre.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q));
     const matchFilter =
       activeFilter === 'tous'      ? true :
       activeFilter === 'actifs'    ? p.statut === 'actif' :
@@ -229,6 +257,7 @@ export default function ProjetsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>{t("projects.title")}</Text>
+        {loading && <ActivityIndicator size="small" color={COLORS.accent} />}
       </View>
 
       {/* Search */}
@@ -248,8 +277,8 @@ export default function ProjetsScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity style={styles.filterIconBtn} activeOpacity={0.7}>
-          <Text style={styles.filterIconText}>≡</Text>
+        <TouchableOpacity style={styles.filterIconBtn} activeOpacity={0.7} onPress={fetchProjects}>
+          <Text style={styles.filterIconText}>🔄</Text>
         </TouchableOpacity>
       </View>
 
@@ -279,7 +308,11 @@ export default function ProjetsScreen() {
       </View>
 
       {/* List or Empty */}
-      {filteredProjects.length === 0 ? (
+      {loading ? (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color={COLORS.accent} />
+        </View>
+      ) : filteredProjects.length === 0 ? (
         <View style={styles.emptyContainer}>
           <View style={styles.emptyIconCircle}>
             <Text style={styles.emptyIcon}>📁</Text>
@@ -296,7 +329,15 @@ export default function ProjetsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {filteredProjects.map((p) => (
-            <ProjectCard key={p.id} project={p} colors={COLORS} styles={styles} badgeStyles={badgeStyles} />
+            <ProjectCard 
+              key={p.id_projet} 
+              project={p} 
+              colors={COLORS} 
+              styles={styles} 
+              badgeStyles={badgeStyles} 
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
           ))}
         </ScrollView>
       )}
@@ -385,4 +426,12 @@ const createStyles = (COLORS: ProjectColors) => StyleSheet.create({
   datesRow:      { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   dateText:      { fontSize: 12, color: COLORS.textMuted },
   badgesRow:     { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  actionButtons: { flexDirection: 'row', gap: 8 },
+  actionBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
 });

@@ -1,6 +1,6 @@
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Animated,
@@ -11,10 +11,12 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AddButton from "../../../components/AddButton";
 import { AppTheme, useAppTheme } from "@/theme";
+import { projectService } from "@/services/projectService";
 
 const { width } = Dimensions.get("window");
 
@@ -222,11 +224,74 @@ export default function Home() {
   const T = useMemo(() => createPalette(theme), [theme]);
   const styles = useMemo(() => createStyles(T), [T]);
 
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    activeProjects: 0,
+    myTasks: 0,
+    urgentTasks: 0,
+    dueSoonTasks: 0,
+    completedTasks: 0,
+    inProgressTasks: 0,
+    todoTasks: 0,
+    progression: 0,
+  });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [projects, tasks] = await Promise.all([
+        projectService.getProjects(),
+        projectService.getTasks(),
+      ]);
+
+      const activeCount = projects.filter((p: any) => p.statut === 'actif').length;
+      
+      const myTasksCount = tasks.length;
+      const urgentCount = tasks.filter((t: any) => t.priorite === 'haute' && t.statut !== 'terminees').length;
+      
+      const today = new Date();
+      const nextWeek = new Date();
+      nextWeek.setDate(today.getDate() + 7);
+      const dueSoonCount = tasks.filter((t: any) => {
+        if (!t.echeance || t.statut === 'terminees') return false;
+        const d = new Date(t.echeance);
+        return d >= today && d <= nextWeek;
+      }).length;
+
+      const completedCount = tasks.filter((t: any) => t.statut === 'terminees').length;
+      const inProgressCount = tasks.filter((t: any) => t.statut === 'en_cours').length;
+      const todoCount = tasks.filter((t: any) => t.statut === 'a_faire').length;
+
+      const totalProgression = tasks.length > 0 
+        ? Math.round(tasks.reduce((acc: number, t: any) => acc + (t.progression || 0), 0) / tasks.length)
+        : 0;
+      
+      setStats({
+        activeProjects: activeCount,
+        myTasks: myTasksCount,
+        urgentTasks: urgentCount,
+        dueSoonTasks: dueSoonCount,
+        completedTasks: completedCount,
+        inProgressTasks: inProgressCount,
+        todoTasks: todoCount,
+        progression: totalProgression,
+      });
+    } catch (error) {
+      console.error('Error fetching home data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const cards: CardConfig[] = [
-    { title: t("home.my_tasks"), icon: "check-circle", color: T.accent, dimColor: T.accentGlow, count: 0 },
-    { title: t("home.urgent"), icon: "error", color: T.red, dimColor: T.redDim, count: 0 },
-    { title: t("home.active_projects"), icon: "folder", color: T.green, dimColor: T.greenDim, count: 0 },
-    { title: t("home.due_soon"), icon: "schedule", color: T.orange, dimColor: T.orangeDim, count: 0 },
+    { title: t("home.my_tasks"), icon: "check-circle", color: T.accent, dimColor: T.accentGlow, count: stats.myTasks },
+    { title: t("home.urgent"), icon: "error", color: T.red, dimColor: T.redDim, count: stats.urgentTasks },
+    { title: t("home.active_projects"), icon: "folder", color: T.green, dimColor: T.greenDim, count: stats.activeProjects },
+    { title: t("home.due_soon"), icon: "schedule", color: T.orange, dimColor: T.orangeDim, count: stats.dueSoonTasks },
   ];
 
   return (
@@ -240,10 +305,14 @@ export default function Home() {
           {/* ── Header ── */}
           <AnimatedCard delay={0} style={styles.header}>
             <View>
-              <Text style={styles.hello}>{t("home.hello")} 👋</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.hello}>{t("home.hello")}</Text>
+                <Ionicons name="hand-right-outline" size={16} color={T.orange} />
+              </View>
               <Text style={styles.name}>Raoul Forba</Text>
             </View>
             <View style={styles.headerRight}>
+              {loading && <ActivityIndicator size="small" color={T.accent} style={{ marginRight: 8 }} />}
               <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
                 <Ionicons name="notifications-outline" size={20} color={T.textPrimary} />
                 <View style={styles.notifDot} />
@@ -269,18 +338,18 @@ export default function Home() {
                   <Text style={styles.progressSub}>{t("home.updated_today")}</Text>
                 </View>
                 <View style={styles.percentBadge}>
-                  <Text style={styles.percentText}>0%</Text>
+                  <Text style={styles.percentText}>{stats.progression}%</Text>
                 </View>
               </View>
 
-              <ProgressBar percent={0} styles={styles} />
+              <ProgressBar percent={stats.progression} styles={styles} />
 
               <View style={styles.statsRow}>
-                <StatPill value={0} label={t("home.completed")} color={T.green} styles={styles} />
+                <StatPill value={stats.completedTasks} label={t("home.completed")} color={T.green} styles={styles} />
                 <View style={{ width: 8 }} />
-                <StatPill value={0} label={t("home.in_progress")} color={T.orange} styles={styles} />
+                <StatPill value={stats.inProgressTasks} label={t("home.in_progress")} color={T.orange} styles={styles} />
                 <View style={{ width: 8 }} />
-                <StatPill value={0} label={t("home.todo")} color={T.accent} styles={styles} />
+                <StatPill value={stats.todoTasks} label={t("home.todo")} color={T.accent} styles={styles} />
               </View>
             </View>
           </AnimatedCard>
@@ -328,7 +397,19 @@ export default function Home() {
               <Text style={styles.sectionTitle}>{t("home.overview")}</Text>
               <View style={styles.grid}>
                 {cards.map((card, i) => (
-                  <OverviewCard key={i} card={card} styles={styles} />
+                  <TouchableOpacity 
+                    key={i} 
+                    activeOpacity={0.7} 
+                    onPress={() => {
+                      if (card.title === t("home.active_projects")) {
+                        router.push("/(tabs)/Home/projects");
+                      } else if (card.title === t("home.my_tasks") || card.title === t("home.urgent") || card.title === t("home.due_soon")) {
+                        router.push("/(tabs)/Home/tasks");
+                      }
+                    }}
+                  >
+                    <OverviewCard card={card} styles={styles} />
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>

@@ -1,81 +1,185 @@
-import re
+from pydantic import BaseModel, EmailStr, Field, validator
+from datetime import date, datetime
+from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, field_validator
-from fastapi import HTTPException, Depends  
-from sqlalchemy.orm import Session
-from .import models
-from .database import get_db
+# --- User Schemas ---
+class UserBase(BaseModel):
+    nom: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    phone: Optional[str] = Field(None, max_length=20)
 
-class UserCreate(BaseModel):
-    nom: str
-    phone: str
-    email: str
-    motdepasse: str
-
-class UserUpdate(BaseModel):
-    nom: str
-    phone: str
-
-class UserResponse(BaseModel):
-    id: int
-    nom: str
-    phone: str 
-    email: str
+class UserRegister(UserBase):
+    motdepasse: str = Field(..., min_length=8)
+    confirm_motdepasse: str
 
 class UserLogin(BaseModel):
-    email:      EmailStr
-    motdepasse: str          
+    email: EmailStr
+    motdepasse: str
+
+class UserResponse(UserBase):
+    id: int
+    role: str
+    actif: bool
+    class Config:
+        from_attributes = True
+
+class UserUpdate(BaseModel):
+    nom: Optional[str] = Field(None, min_length=1, max_length=100)
+    phone: Optional[str] = Field(None, max_length=20)
 
 class Token(BaseModel):
     access_token: str
-    token_type:   str
-    message:      str
+    token_type: str
+    message: Optional[str] = None
 
 class TokenData(BaseModel):
-    email: str | None = None
+    email: Optional[str] = None
 
+# --- Forgot Password Schemas ---
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
-
 class ResetPasswordRequest(BaseModel):
-    token:            str
-    new_motdepasse:   str
+    token: str
+    new_motdepasse: str = Field(..., min_length=8)
     confirm_motdepasse: str
 
-class UserRegister(BaseModel):
-    nom:               str
-    email:             EmailStr
-    phone:             str  = ""
-    motdepasse:        str
-    confirm_motdepasse: str
+# --- Equipe Schemas ---
+class EquipeBase(BaseModel):
+    nom: str = Field(..., min_length=1, max_length=100)
+    description: Optional[str] = None
+    id_projet: int
 
-    @field_validator("nom")
-    @classmethod
-    def nom_non_vide(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("Le nom ne peut pas être vide")
-        return v.strip()
+class EquipeCreate(EquipeBase):
+    pass
 
-    @field_validator("motdepasse")
-    @classmethod
-    def motdepasse_min_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Le mot de passe doit contenir au moins 8 caractères")
+class EquipeOut(EquipeBase):
+    id_equipe: int
+    class Config:
+        from_attributes = True
+
+# --- Projet Schemas ---
+class ProjetBase(BaseModel):
+    titre: str = Field(..., min_length=1, max_length=150)
+    description: Optional[str] = None
+    dateDebut: date
+    dateFin: date
+    statut: str = Field("actif", max_length=50)
+    etat: str = Field("en_cours", max_length=50)
+    id_administrateur: Optional[int] = None
+
+    @validator('dateFin')
+    def validate_dates(cls, v, values):
+        if 'dateDebut' in values and v < values['dateDebut']:
+            raise ValueError('La date de fin doit être postérieure à la date de début')
         return v
-    
-    @field_validator("phone")
-    @classmethod
-    def validate_cameroon_phone(cls, v: str) -> str:
-        # Supprime les espaces
-        phone = v.replace(" ", "")
 
-        # Regex Cameroun
-        pattern = r"^(\+237)?6[0-9]{8}$"
+class ProjetCreate(ProjetBase):
+    pass
 
-        if not re.match(pattern, phone):
-            raise ValueError(
-                "Numéro camerounais invalide. Exemple: +237 xxxxxxxxx ou 6xxxxxxxx"
-            )
+class ProjetOut(ProjetBase):
+    id_projet: int
+    equipe: Optional[EquipeOut] = None
+    class Config:
+        from_attributes = True
 
-        return phone
+# --- Tache Schemas ---
+class TacheBase(BaseModel):
+    titre: str = Field(..., min_length=1, max_length=150)
+    description: Optional[str] = None
+    priorite: str = Field("moyenne", max_length=50) # faible, moyenne, haute
+    statut: str = Field("a_faire", max_length=50) # a_faire, en_cours, terminees
+    status: str = Field("todo", max_length=50) # todo, in_progress, completed
+    echeance: Optional[date] = None
+    progression: int = Field(0, ge=0, le=100) # 0-100
+    etat: str = Field("active", max_length=50) # active, archivée
+    id_projet: int
+
+class TacheCreate(TacheBase):
+    pass
+
+class TacheUpdate(BaseModel):
+    titre: Optional[str] = Field(None, min_length=1, max_length=150)
+    description: Optional[str] = None
+    priorite: Optional[str] = Field(None, max_length=50)
+    statut: Optional[str] = Field(None, max_length=50)
+    status: Optional[str] = Field(None, max_length=50)
+    echeance: Optional[date] = None
+    progression: Optional[int] = Field(None, ge=0, le=100)
+    etat: Optional[str] = Field(None, max_length=50)
+
+class TacheOut(TacheBase):
+    id_tache: int
+    projet: Optional[ProjetOut] = None
+    class Config:
+        from_attributes = True
+
+# --- Commentaire Schemas ---
+class CommentaireBase(BaseModel):
+    contenu: str = Field(..., min_length=1)
+    id_utilisateur: int
+
+class CommentaireCreate(CommentaireBase):
+    pass
+
+class CommentaireOut(CommentaireBase):
+    id_commentaire: int
+    date_creation: datetime
+    id_tache: int
+    class Config:
+        from_attributes = True
+
+# --- Appartient_Equipe Schemas (Team Membership) ---
+class AppartientEquipeCreate(BaseModel):
+    id_utilisateur: int
+    id_equipe: int
+
+class AppartientEquipeOut(AppartientEquipeCreate):
+    class Config:
+        from_attributes = True
+
+# --- Dashboard Schemas ---
+class DashboardOut(BaseModel):
+    total_taches: int
+    taches_terminees: int
+    taches_en_cours: int
+    taches_en_retard: int
+    progression_globale: float
+
+    class Config:
+        from_attributes = True
+
+
+# --- Message Schemas ---
+class MessageBase(BaseModel):
+    contenu: str
+    type_conversation: str
+    id_expediteur: int
+    id_assistant: Optional[int] = None
+
+class MessageCreate(MessageBase):
+    pass
+
+class MessageRead(MessageBase):
+    id_message: int
+    date_envoi: datetime
+    class Config:
+        from_attributes = True
+
+# --- Notification Schemas ---
+class NotificationBase(BaseModel):
+    id_utilisateur: int
+    message: str
+    lu: bool = False
+
+class NotificationCreate(NotificationBase):
+    pass
+
+class NotificationRead(NotificationBase):
+    id_notification: int
+    date_envoi: datetime
+    class Config:
+        from_attributes = True
+
+class NotificationCount(BaseModel):
+    count: int
