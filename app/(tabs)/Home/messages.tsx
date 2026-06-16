@@ -1,14 +1,32 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/theme";
+import { userService } from "@/services/userService";
+import AddButton from "../../../components/AddButton";
 
 
 export default function Messages() {
+  const router = useRouter();
   const { t } = useTranslation();
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const user = await userService.getCurrentUser();
+        setIsAdmin(user?.role === "admin");
+      } catch (error) {
+        console.error("Error fetching current user:", error);
+      }
+    };
+    fetchUser();
+  }, []);
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -27,6 +45,18 @@ export default function Messages() {
           {t("messages.start_conversation")}
         </Text>
       </View>
+
+      {isAdmin && (
+        <AddButton
+          onPress={() => router.push("/(tabs)/Home/new-message")}
+          backgroundColor={theme.accent}
+          accessibilityLabel="Ajouter un message"
+          shadowColor={theme.accent}
+          size={56}
+          iconSize={32}
+          style={styles.floatingAddButton}
+        />
+      )}
     </View>
   );
 }
@@ -74,6 +104,12 @@ const createStyles = (theme: {
     color: theme.textSecondary,
     textAlign: "center",
     marginTop: 5,
+  },
+  floatingAddButton: {
+    bottom: 90,
+    right: 20,
+    borderWidth: 1,
+    borderColor: theme.accent + "66",
   },
   
 });

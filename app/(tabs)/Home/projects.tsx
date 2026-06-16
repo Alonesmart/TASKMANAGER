@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from "react-i18next";
+import AddButton from "../../../components/AddButton";
 import {
   ActivityIndicator,
   Alert,
@@ -227,7 +228,7 @@ export default function ProjetsScreen() {
   const filters = [
     { key: 'tous',      label: t("projects.filter_all") },
     { key: 'actifs',    label: t("projects.filter_active") },
-    { key: 'pause',     label: t("projects.filter_paused") },
+    { key: 'pause',     label: "pausse" },
     { key: 'termine',   label: t("projects.filter_done") },
   ];
 
@@ -465,6 +466,18 @@ export default function ProjetsScreen() {
         </ScrollView>
       )}
 
+      {isAdmin && (
+        <AddButton
+          onPress={() => router.push("/(tabs)/Home/new-projet")}
+          backgroundColor={COLORS.accent}
+          accessibilityLabel="Ajouter un projet"
+          shadowColor={COLORS.accent}
+          size={56}
+          iconSize={32}
+          style={styles.floatingAddButton}
+        />
+      )}
+
       <Modal
         visible={detailsVisible}
         animationType="slide"
@@ -475,7 +488,7 @@ export default function ProjetsScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalEyebrow}>{t("detail du projet")}</Text>
+                <Text style={styles.modalEyebrow}>nom du projet</Text>
                 <Text style={styles.modalTitle} numberOfLines={2}>
                   {selectedProject?.titre || t("projects.details")}
                 </Text>
@@ -496,7 +509,7 @@ export default function ProjetsScreen() {
                     <Ionicons name="folder-open" size={26} color={COLORS.accent} />
                   </View>
                   <View style={styles.modalHeroContent}>
-                    <Text style={styles.modalHeroLabel}>{t("projects.details")}</Text>
+                    <Text style={styles.modalHeroLabel}>{t("nom  du projet")}</Text>
                     <Text style={styles.modalHeroTitle} numberOfLines={2}>{selectedProject.titre}</Text>
                     {!!selectedProject.description && (
                       <Text style={styles.modalDescription} numberOfLines={4}>
@@ -994,5 +1007,11 @@ const createStyles = (COLORS: ProjectColors) => StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: 14,
+  },
+  floatingAddButton: {
+    bottom: 90,
+    right: 20,
+    borderWidth: 1,
+    borderColor: COLORS.accent + '66',
   },
 });

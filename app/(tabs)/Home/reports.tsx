@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Platform,
@@ -11,6 +12,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/theme";
+import { userService } from "@/services/userService";
+import AddButton from "../../../components/AddButton";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
 const T = {
@@ -62,10 +65,24 @@ const EmptyState = ({ filterKey, t }: { filterKey: (typeof FILTER_KEYS)[number];
 
 // ─── Écran principal ──────────────────────────────────────────────────────────
 export default function RapportScreen() {
+  const router = useRouter();
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const [activeFilter, setActiveFilter] = useState<(typeof FILTER_KEYS)[number]>("all");
   const [activeTab, setActiveTab] = useState("reports");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const user = await userService.getCurrentUser();
+        setIsAdmin(user?.role === "admin");
+      } catch (error) {
+        console.error("Error fetching current user:", error);
+      }
+    };
+    fetchUser();
+  }, []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={["top", "bottom"]}>
@@ -120,6 +137,18 @@ export default function RapportScreen() {
       <View style={styles.content}>
         <EmptyState filterKey={activeFilter} t={t} />
       </View>
+
+      {isAdmin && (
+        <AddButton
+          onPress={() => router.push("/(tabs)/Home/new-report")}
+          backgroundColor={theme.accent}
+          accessibilityLabel="Ajouter un rapport"
+          shadowColor={theme.accent}
+          size={56}
+          iconSize={32}
+          style={[styles.floatingAddButton, { borderColor: theme.accent + "66" }]}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -316,5 +345,10 @@ const styles = StyleSheet.create({
   tabLabelActive: {
     color: T.accent,
     fontWeight: "700",
+  },
+  floatingAddButton: {
+    bottom: 90,
+    right: 20,
+    borderWidth: 1,
   },
 });

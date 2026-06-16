@@ -14,6 +14,8 @@ import {
 } from "react-native";
 import { useAppTheme } from "@/theme";
 import { projectService } from "@/services/projectService";
+import { userService } from "@/services/userService";
+import AddButton from "../../../components/AddButton";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminees";
@@ -155,6 +157,7 @@ export default function Tasks() {
   const [search, setSearch]             = useState("");
   const [tasks, setTasks]               = useState<Task[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [isAdmin, setIsAdmin]           = useState(false);
 
   const filters = [
     { id: "toutes" as const, label: t("tasks.filter_all"), color: "#3b82f6" },
@@ -166,7 +169,16 @@ export default function Tasks() {
   const activeColor = filters.find(f => f.id === activeFilter)?.color ?? "#3b82f6";
 
   useEffect(() => {
-    fetchTasks();
+    const init = async () => {
+      try {
+        const user = await userService.getCurrentUser();
+        setIsAdmin(user?.role === "admin");
+      } catch (error) {
+        console.error("Error fetching current user:", error);
+      }
+      fetchTasks();
+    };
+    init();
   }, []);
 
   const fetchTasks = async () => {
@@ -343,6 +355,18 @@ export default function Tasks() {
           ))}
         </ScrollView>
       )}
+
+      {isAdmin && (
+        <AddButton
+          onPress={() => router.push("/(tabs)/Home/new-tasks")}
+          backgroundColor={theme.accent}
+          accessibilityLabel="Ajouter une tâche"
+          shadowColor={theme.accent}
+          size={56}
+          iconSize={32}
+          style={styles.floatingAddButton}
+        />
+      )}
     </View>
   );
 }
@@ -396,5 +420,11 @@ const createStyles = (theme: {
   circle:     { width: 120, height: 120, borderRadius: 60, justifyContent: "center", alignItems: "center", marginBottom: 20 },
   emptyTitle: { color: theme.textPrimary, fontSize: 18, fontWeight: "bold", marginBottom: 8 },
   emptySub:   { color: theme.textSecondary, textAlign: "center", lineHeight: 20 },
+  floatingAddButton: {
+    bottom: 90,
+    right: 20,
+    borderWidth: 1,
+    borderColor: theme.accent + "66",
+  },
 
 });
