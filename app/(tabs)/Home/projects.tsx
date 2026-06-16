@@ -1,4 +1,5 @@
 import { projectService } from '@/services/projectService';
+import { userService } from '@/services/userService';
 import { AppTheme, useAppTheme } from "@/theme";
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -7,6 +8,7 @@ import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -15,8 +17,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Snackbar } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AddButton from "../../../components/AddButton";
 
 const createColors = (theme: AppTheme) => ({
   bg: theme.bg,
@@ -106,6 +108,7 @@ const ProjectCard = ({
   badgeStyles,
   onEdit,
   onDelete,
+  isAdmin,
 }: {
   project: Project;
   colors: ProjectColors;
@@ -113,12 +116,15 @@ const ProjectCard = ({
   badgeStyles: ReturnType<typeof createBadgeStyles>;
   onEdit: (p: Project) => void;
   onDelete: (id: number) => void;
+  isAdmin: boolean;
 }) => {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
     const d = new Date(dateStr);
     return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   };
+
+  const canModify = isAdmin && !!project.id_administrateur;
 
   return (
     <View style={styles.projectCard}>
@@ -133,14 +139,16 @@ const ProjectCard = ({
             <Text style={styles.projectChef}>👤 Admin ID: {project.id_administrateur}</Text>
           )}
         </View>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={() => onEdit(project)} style={styles.actionBtn}>
-            <Ionicons name="pencil" size={18} color={colors.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => onDelete(project.id_projet)} style={styles.actionBtn}>
-            <Ionicons name="trash" size={18} color={colors.danger} />
-          </TouchableOpacity>
-        </View>
+        {canModify && (
+          <View style={styles.actionButtons}>
+            <TouchableOpacity onPress={() => onEdit(project)} style={styles.actionBtn}>
+              <Ionicons name="pencil" size={18} color={colors.accent} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onDelete(project.id_projet)} style={styles.actionBtn}>
+              <Ionicons name="trash" size={18} color={colors.danger} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Description */}
@@ -184,15 +192,29 @@ export default function ProjetsScreen() {
   const [search, setSearch]             = useState('');
   const [projects, setProjects]         = useState<Project[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [isAdmin, setIsAdmin]           = useState(false);
+  const [snackbar, setSnackbar]         = useState({ visible: false, message: '', type: 'info' });
 
   const filters = [
     { key: 'tous',      label: t("projects.filter_all") },
     { key: 'actifs',    label: t("projects.filter_active") },
-    { key: 'terminees', label: t("projects.filter_done") },
+    { key: 'termine',   label: t("projects.filter_done") },
   ];
 
   useEffect(() => {
-    fetchProjects();
+    const init = async () => {
+      setLoading(true);
+      try {
+        const user = await userService.getCurrentUser();
+        setIsAdmin(user?.role === 'admin');
+        await fetchProjects();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
   }, []);
 
   const fetchProjects = async () => {
@@ -202,9 +224,14 @@ export default function ProjetsScreen() {
       setProjects(data);
     } catch (error) {
       console.error('Error fetching projects:', error);
+      showFeedback(t("common.error_fetch"), 'error');
     } finally {
       setLoading(false);
     }
+  };
+
+  const showFeedback = (message: string, type: string = 'info') => {
+    setSnackbar({ visible: true, message, type });
   };
 
   const handleDelete = async (id: number) => {
@@ -219,10 +246,10 @@ export default function ProjetsScreen() {
           onPress: async () => {
             try {
               await projectService.deleteProject(id);
+              showFeedback(t("common.success_delete"));
               fetchProjects();
             } catch (error: any) {
-              console.error('Error deleting project:', error);
-              Alert.alert("Erreur", error.response?.data?.detail || "Impossible de supprimer le projet");
+              showFeedback(error.response?.data?.detail || t("common.error"), 'error');
             }
           }
         }
@@ -244,11 +271,12 @@ export default function ProjetsScreen() {
   const filteredProjects = projects.filter((p) => {
     const q = search.trim().toLowerCase();
     const matchSearch = !q || p.titre.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q));
-    const matchFilter =
-      activeFilter === 'tous'      ? true :
-      activeFilter === 'actifs'    ? p.statut === 'actif' :
-      activeFilter === 'terminees' ? p.statut === 'termine' :
-      true;
+      const matchFilter =
+        activeFilter === 'tous'      ? true :
+        activeFilter === 'actifs'    ? p.statut === 'actif' :
+        activeFilter === 'termine'   ? p.statut === 'termine' :
+        activeFilter === 'pause'     ? p.statut === 'pause' :
+        true;
     return matchSearch && matchFilter;
   });
 
@@ -259,7 +287,9 @@ export default function ProjetsScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>{t("projects.title")}</Text>
-        {loading && <ActivityIndicator size="small" color={COLORS.accent} />}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {loading && <ActivityIndicator size="small" color={COLORS.accent} />}
+        </View>
       </View>
 
       {/* Search */}
@@ -301,7 +331,8 @@ export default function ProjetsScreen() {
               <Text style={[styles.filterCount, activeFilter === f.key && { color: COLORS.bg }]}>
                 {projects.filter((p) =>
                   f.key === 'actifs'    ? p.statut === 'actif' :
-                  f.key === 'terminees' ? p.statut === 'termine' : true
+                  f.key === 'termine'   ? p.statut === 'termine' : true
+                  
                 ).length}
               </Text>
             )}
@@ -323,8 +354,16 @@ export default function ProjetsScreen() {
           <Text style={styles.emptySubtitle}>
             {t("projects.empty_subtitle")}
           </Text>
+          {isAdmin && (
+            <TouchableOpacity 
+              style={styles.emptyCreateBtn} 
+              onPress={() => router.push("/(tabs)/Home/new-projet")}
+            >
+              <Text style={styles.emptyCreateBtnText}>{t("new_project.title")}</Text>
+            </TouchableOpacity>
+          )}
         </View>
-      ) : (
+      ) : ( // Only render ScrollView if there are projects
         <ScrollView
           style={styles.listWrap}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120, gap: 10 }}
@@ -339,14 +378,20 @@ export default function ProjetsScreen() {
               badgeStyles={badgeStyles} 
               onEdit={handleEdit}
               onDelete={handleDelete}
+              isAdmin={isAdmin}
             />
           ))}
         </ScrollView>
       )}
-      <AddButton
-        backgroundColor={COLORS.accent}
-        onPress={() => router.push("/(tabs)/Home/new-projet")}
-      />
+      <Snackbar
+        visible={snackbar.visible}
+        onDismiss={() => setSnackbar({ ...snackbar, visible: false })}
+        duration={3000}
+        style={{ backgroundColor: snackbar.type === 'error' ? COLORS.danger : COLORS.surface }}
+        action={{ label: 'OK', onPress: () => {} }}
+      >
+        {snackbar.message}
+      </Snackbar>
     </SafeAreaView>
   );
 }
@@ -435,5 +480,17 @@ const createStyles = (COLORS: ProjectColors) => StyleSheet.create({
     backgroundColor: COLORS.bg,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  emptyCreateBtn: {
+    marginTop: 20,
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  emptyCreateBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

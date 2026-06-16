@@ -12,7 +12,6 @@ import {
   View,
   ActivityIndicator,
 } from "react-native";
-import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "@/theme";
 import { projectService } from "@/services/projectService";
 
@@ -25,7 +24,6 @@ type Task = {
   description: string | null;
   priorite:    string;
   statut:      string;
-  status:      string;
   echeance:    string | null;
   progression: number;
   id_projet:   number;
@@ -46,15 +44,6 @@ const STATUT_NEXT: Record<string, string> = {
   a_faire:   "en_cours",
   en_cours:  "terminees",
   terminees: "a_faire",
-};
-
-const mapStatutToStatus = (s: string) => {
-  switch (s) {
-    case 'a_faire': return 'todo';
-    case 'en_cours': return 'in_progress';
-    case 'terminees': return 'completed';
-    default: return 'todo';
-  }
 };
 
 // ─── TASK CARD ─────────────────────────────────────────────────────────────────
@@ -194,9 +183,8 @@ export default function Tasks() {
 
   const handleChangeStatut = async (id: number, statut: string) => {
     try {
-      const status = mapStatutToStatus(statut);
-      await projectService.updateTask(id, { statut, status });
-      setTasks(prev => prev.map(t => t.id_tache === id ? { ...t, statut, status } : t));
+      await projectService.updateTask(id, { statut });
+      setTasks(prev => prev.map(t => t.id_tache === id ? { ...t, statut } : t));
     } catch (error) {
       console.error('Error updating task status:', error);
       Alert.alert(t("common.error"), "Impossible de mettre à jour le statut");
@@ -346,7 +334,7 @@ export default function Tasks() {
         >
           {filtered.map(task => (
             <TaskCard
-              key={task.id}
+              key={task.id_tache}
               task={task}
               onChangeStatut={handleChangeStatut}
               onEdit={handleEditTask}
@@ -355,12 +343,6 @@ export default function Tasks() {
           ))}
         </ScrollView>
       )}
-
-      {/* FAB */}
-      <AddButton
-        backgroundColor={theme.accent}
-        onPress={() => router.push("/(tabs)/Home/new-tasks" as any)}
-      />
     </View>
   );
 }

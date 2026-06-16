@@ -7,16 +7,13 @@ from jose import JWTError, jwt
 from sqlalchemy import select
 from ..Schemas import UserLogin, Token, TokenData
 
-from ..database import get_db, pwd_context
+from ..database import get_db, pwd_context, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, MAX_TENTATIVES
 from .. import models
 
 router = APIRouter()
 
 # ─── Config JWT ───────────────────────────────────────────────────────────────
-SECRET_KEY                  = "changez_cette_cle_en_production_!!!"   # ⚠️ à externaliser via .env
-ALGORITHM                   = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-MAX_TENTATIVES              = 5
+# (Config moved to database.py)
 
 security = HTTPBearer()
 

@@ -90,7 +90,6 @@ class TacheBase(BaseModel):
     description: Optional[str] = None
     priorite: str = Field("moyenne", max_length=50) # faible, moyenne, haute
     statut: str = Field("a_faire", max_length=50) # a_faire, en_cours, terminees
-    status: str = Field("todo", max_length=50) # todo, in_progress, completed
     echeance: Optional[date] = None
     progression: int = Field(0, ge=0, le=100) # 0-100
     etat: str = Field("active", max_length=50) # active, archivée
@@ -104,7 +103,6 @@ class TacheUpdate(BaseModel):
     description: Optional[str] = None
     priorite: Optional[str] = Field(None, max_length=50)
     statut: Optional[str] = Field(None, max_length=50)
-    status: Optional[str] = Field(None, max_length=50)
     echeance: Optional[date] = None
     progression: Optional[int] = Field(None, ge=0, le=100)
     etat: Optional[str] = Field(None, max_length=50)

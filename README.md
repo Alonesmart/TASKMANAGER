@@ -12,13 +12,24 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
 
 2. Start the backend server
 
+   The backend uses SQLite by default. The database file is `taskmanager.db`
+   at the project root.
+
+   Initialize the backend database once:
+
+   ```bash
+   ./.venv/bin/python scripts/init_db.py
+   ```
+
    ```bash
    npm run start:server
    # or
    ./start_server.sh
    ```
 
-   The server will be available at `http://192.168.43.23:8000`
+   The server will be available at `http://127.0.0.1:8000`.
+   On a physical phone with Expo Go, the app automatically uses the Expo dev
+   server host and port `8000` for the backend.
 
 3. Start the app
 

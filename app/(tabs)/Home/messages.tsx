@@ -2,15 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, Text, View } from "react-native";
-import { useRouter } from "expo-router";
-import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "@/theme";
 
 
 export default function Messages() {
-  const router = useRouter();
   const { t } = useTranslation();
-   const NEW_MESSAGE_ROUTE = "/(tabs)/Home/new-message" as any;
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   return (
@@ -31,10 +27,6 @@ export default function Messages() {
           {t("messages.start_conversation")}
         </Text>
       </View>
-      <AddButton
-        backgroundColor={theme.accent}
-        onPress={() => router.push(NEW_MESSAGE_ROUTE)}
-      />
     </View>
   );
 }

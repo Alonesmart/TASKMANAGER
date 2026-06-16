@@ -1,20 +1,17 @@
 import os
+from pathlib import Path
+from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import DeclarativeBase
 from passlib.context import CryptContext
 
-# ─── URL de connexion MySQL ────────────────────────────────────────────────────
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "mysql+aiomysql://taskuser:Task2024!@localhost:3306/taskmanager"
-)
+# ─── Configuration SQLite ─────────────────────────────────────────────────────
+BASE_DIR = Path(__file__).resolve().parents[1]
+SQLITE_DB_PATH = BASE_DIR / "taskmanager.db"
+DATABASE_URL = URL.create("sqlite+aiosqlite", database=str(SQLITE_DB_PATH))
 
 engine = create_async_engine(
     DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-    pool_size=10,
-    max_overflow=20,
     echo=False,
 )
 
@@ -33,6 +30,7 @@ SessionLocal = async_sessionmaker(
 SECRET_KEY = os.getenv("SECRET_KEY", "changez_cette_cle_en_production_!!!")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+MAX_TENTATIVES = int(os.getenv("MAX_TENTATIVES", "5"))
 
 # ─── Hachage des mots de passe ─────────────────────────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

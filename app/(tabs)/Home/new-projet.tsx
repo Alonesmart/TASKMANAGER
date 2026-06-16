@@ -1,3 +1,4 @@
+import { SimpleDatePicker } from '@/components/SimpleDatePicker';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,15 +21,6 @@ import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useTranslation } from "react-i18next";
 
-type SimpleDatePickerProps = {
-  label: string;
-  value: Date | null;
-  onChange: (date: any) => void;
-  styles: any;
-  colors: any;
-  t: (key: string, options?: any) => any;
-};
-
 type User = {
   id: number;
   nom: string;
@@ -39,101 +31,6 @@ type User = {
 
 type ProjectPriority = 'haute' | 'moyenne' | 'basse';
 type ProjectStatus = 'actif' | 'pause' | 'termine';
-
-// ─── SIMPLE DATE PICKER ────────────────────────────────────────────────────────
-const SimpleDatePicker = ({ label, value, onChange, styles, colors, t }: SimpleDatePickerProps) => {
-  const [show, setShow] = useState(false);
-  const today = new Date();
-  const [year, setYear]   = useState(value ? value.getFullYear() : today.getFullYear());
-  const [month, setMonth] = useState(value ? value.getMonth()    : today.getMonth());
-  const [day, setDay]     = useState(value ? value.getDate()     : today.getDate());
-
-  const translatedMonths = t("date.months_short", { returnObjects: true });
-  const monthNames = Array.isArray(translatedMonths) && translatedMonths.length === 12
-    ? translatedMonths
-    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const confirm = () => {
-    onChange(new Date(year, month, day));
-    setShow(false);
-  };
-
-  const formatDate = (d: Date | null) =>
-    d
-      ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-      : t("date.select");
-
-  return (
-    <>
-      <TouchableOpacity style={styles.dateBtn} onPress={() => setShow(true)} activeOpacity={0.8}>
-        <MaterialIcons name="calendar-today" size={20} color={colors.accent} />
-        <Text style={[styles.dateBtnText, !value && { color: colors.textDim }]}>
-          {formatDate(value)}
-        </Text>
-      </TouchableOpacity>
-
-      <Modal visible={show} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.dateModal}>
-            <Text style={styles.dateModalTitle}>{label}</Text>
-
-            <Text style={styles.datePickerLabel}>{t("date.month")}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {monthNames.map((m, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.dateChip, month === i && styles.dateChipActive]}
-                  onPress={() => {
-                    setMonth(i);
-                    if (day > new Date(year, i + 1, 0).getDate()) setDay(1);
-                  }}
-                >
-                  <Text style={[styles.dateChipText, month === i && styles.dateChipTextActive]}>{m}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.datePickerLabel}>{t("date.day")}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-                <TouchableOpacity
-                  key={d}
-                  style={[styles.dateChip, styles.dateChipSmall, day === d && styles.dateChipActive]}
-                  onPress={() => setDay(d)}
-                >
-                  <Text style={[styles.dateChipText, day === d && styles.dateChipTextActive]}>
-                    {String(d).padStart(2, '0')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.datePickerLabel}>{t("date.year")}</Text>
-            <View style={styles.yearRow}>
-              <TouchableOpacity onPress={() => setYear((y) => y - 1)} style={styles.yearBtn}>
-                <Text style={styles.yearBtnText}>‹</Text>
-              </TouchableOpacity>
-              <Text style={styles.yearValue}>{year}</Text>
-              <TouchableOpacity onPress={() => setYear((y) => y + 1)} style={styles.yearBtn}>
-                <Text style={styles.yearBtnText}>›</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.dateModalActions}>
-              <TouchableOpacity onPress={() => setShow(false)} style={styles.dateModalCancel}>
-                <Text style={styles.dateModalCancelText}>{t("date.cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={confirm} style={styles.dateModalConfirm}>
-                <Text style={styles.dateModalConfirmText}>{t("date.confirm")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
-};
 
 // ─── NOUVEAU PROJET SCREEN ─────────────────────────────────────────────────────
 export default function NouveauProjetScreen() {
@@ -243,6 +140,7 @@ export default function NouveauProjetScreen() {
         setDateDebut(new Date(project.dateDebut));
         setDateFin(new Date(project.dateFin));
         setStatut(project.statut);
+        setPriorite(project.priorite);
         
         // Trouver le chef
         if (project.id_administrateur) {
@@ -281,9 +179,6 @@ export default function NouveauProjetScreen() {
     { key: 'termine', label: t("new_project.status_finished"),  color: COLORS.accent,  icon: 'check' },
   ] as const;
 
-const formatDate = (d: Date | null) =>
-  d ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}` : "";
-
 const formatDateForAPI = (d: Date | null) => {
   if (!d) return null;
   return d.toISOString().split('T')[0];
@@ -298,37 +193,38 @@ const formatDateForAPI = (d: Date | null) => {
   };
 
   // ── Sauvegarder → retour vers ProjetsScreen avec les données en params ──────
+  const validateForm = () => {
+    if (!nom.trim()) return t("new_project.project_name_required");
+    if (!dateDebut || !dateFin) return t("new_project.dates_required");
+    if (dateFin < dateDebut) return t("new_project.dates_invalid") || "La date de fin doit être après la date de début";
+    if (!chef) return t("new_project.chef_required") || "Veuillez sélectionner un chef de projet";
+    return null;
+  };
+
   const handleSauvegarder = async () => {
-    if (!nom.trim()) {
-      Alert.alert(t("common.error"), t("new_project.project_name_required"));
-      return;
-    }
-
-    if (!dateDebut || !dateFin) {
-      Alert.alert(t("common.error"), t("new_project.dates_required") || "Dates are required");
-      return;
-    }
-
-    if (dateFin < dateDebut) {
-      Alert.alert(t("common.error"), t("new_project.dates_invalid") || "La date de fin doit être après la date de début");
-      return;
-    }
-
-    if (!chef) {
-      Alert.alert(t("common.error"), t("new_project.chef_required") || "Veuillez sélectionner un chef de projet");
+    const errorMsg = validateForm();
+    if (errorMsg) {
+      Alert.alert(t("common.error"), errorMsg);
       return;
     }
 
     setLoading(true);
     try {
+      const dateDebutApi = formatDateForAPI(dateDebut);
+      const dateFinApi = formatDateForAPI(dateFin);
+      if (!dateDebutApi || !dateFinApi) {
+        Alert.alert(t("common.error"), t("new_project.dates_required"));
+        return;
+      }
+
       const projectData = {
         titre: nom.trim(),
         description: description.trim(),
-        dateDebut: formatDateForAPI(dateDebut),
-        dateFin: formatDateForAPI(dateFin),
+        dateDebut: dateDebutApi,
+        dateFin: dateFinApi,
         statut: statut || 'actif',
         priorite: priorite || 'moyenne',
-        id_administrateur: chef?.id
+        ...(isEditing && chef?.id ? { id_administrateur: chef.id } : {})
       };
 
       if (isEditing) {
@@ -360,8 +256,14 @@ const formatDateForAPI = (d: Date | null) => {
       
       router.back();
     } catch (error: any) {
-      console.error('Error saving project:', error);
-      const errorMsg = error.response?.data?.detail || t("new_project.create_error") || "Failed to save project";
+      console.error('Error saving project:', {
+        message: error?.message,
+        status: error?.response?.status,
+        detail: error?.response?.data,
+        url: error?.config?.url,
+        method: error?.config?.method,
+      });
+      const errorMsg = error.response?.data?.detail || (isEditing ? "Erreur lors de la mise à jour" : t("new_project.create_error"));
       Alert.alert(t("common.error"), errorMsg);
     } finally {
       setLoading(false);
@@ -371,7 +273,7 @@ const formatDateForAPI = (d: Date | null) => {
   const handleDelete = async () => {
     Alert.alert(
       t("common.confirm") || "Confirmation",
-      t("projects.delete_confirm") || "Voulez-vous vraiment supprimer ce projet ?",
+      t("projects.delete_confirm") || "Voulez-vous vraiment supprimer ce projet ?", // Utilise la traduction
       [
         { text: t("common.cancel") || "Annuler", style: "cancel" },
         { 
@@ -384,7 +286,7 @@ const formatDateForAPI = (d: Date | null) => {
               router.back();
             } catch (error: any) {
               console.error('Error deleting project:', error);
-              Alert.alert("Erreur", error.response?.data?.detail || "Impossible de supprimer le projet");
+              Alert.alert(t("common.error"), error.response?.data?.detail || t("common.error")); // Utilise la traduction
             } finally {
               setLoading(false);
             }
@@ -421,7 +323,7 @@ const formatDateForAPI = (d: Date | null) => {
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={styles.sauvegarderText}>{isEditing ? t("common.update") || "Modifier" : t("common.save")}</Text>
+            <Text style={styles.sauvegarderText}>{isEditing ? t("common.update") || "Modifier" : t("common.create") || "Créer"}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -564,10 +466,10 @@ const formatDateForAPI = (d: Date | null) => {
 
         {/* ── Dates ───────────────────────────────────────────────────────── */}
         <Text style={styles.fieldLabel}>{t("new_project.start_date_label")}</Text>
-        <SimpleDatePicker label={t("new_project.start_date_label")} value={dateDebut} onChange={setDateDebut} styles={styles} colors={COLORS} t={t} />
+        <SimpleDatePicker label={t("new_project.start_date_label")} value={dateDebut} onChange={setDateDebut} />
 
         <Text style={[styles.fieldLabel, { marginTop: 16 }]}>{t("new_project.end_date_label")}</Text>
-        <SimpleDatePicker label={t("new_project.end_date_label")} value={dateFin} onChange={setDateFin} styles={styles} colors={COLORS} t={t} />
+        <SimpleDatePicker label={t("new_project.end_date_label")} value={dateFin} onChange={setDateFin} />
 
         {/* ── Membres ─────────────────────────────────────────────────────── */}
         <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
@@ -639,7 +541,7 @@ const formatDateForAPI = (d: Date | null) => {
             disabled={loading}
           >
             <Ionicons name="trash-outline" size={20} color="#fff" />
-            <Text style={styles.deleteProjectText}>{t("common.delete_project") || "Supprimer le projet"}</Text>
+            <Text style={styles.deleteProjectText}>{t("common.delete_project")}</Text>
           </TouchableOpacity>
         )}
 
@@ -723,12 +625,6 @@ StyleSheet.create({
   chipLabelActive: { color: '#fff', fontWeight: '700' },
 
   // Date
-  dateBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.card, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 13,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
   dateBtnIcon: { fontSize: 16 },
   dateBtnText: { color: COLORS.text, fontSize: 14 },
 
@@ -736,42 +632,6 @@ StyleSheet.create({
     flex: 1, backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'center', alignItems: 'center', padding: 20,
   },
-  dateModal: {
-    backgroundColor: COLORS.surface, borderRadius: 16, padding: 20,
-    width: '100%', borderWidth: 1, borderColor: COLORS.border,
-  },
-  dateModalTitle:      { color: COLORS.text, fontWeight: '700', fontSize: 16, marginBottom: 16 },
-  datePickerLabel:     { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 6 },
-  dateChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
-    backgroundColor: COLORS.card, marginRight: 6,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  dateChipSmall:       { paddingHorizontal: 9 },
-  dateChipActive:      { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  dateChipText:        { color: COLORS.textMuted, fontSize: 13 },
-  dateChipTextActive:  { color: '#fff', fontWeight: '700' },
-  yearRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 20, marginBottom: 20,
-  },
-  yearBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: COLORS.card, justifyContent: 'center', alignItems: 'center',
-  },
-  yearBtnText:          { color: COLORS.text, fontSize: 22, fontWeight: '300' },
-  yearValue:            { color: COLORS.text, fontSize: 18, fontWeight: '700', minWidth: 60, textAlign: 'center' },
-  dateModalActions:     { flexDirection: 'row', gap: 10, marginTop: 4 },
-  dateModalCancel: {
-    flex: 1, paddingVertical: 11, borderRadius: 10,
-    backgroundColor: COLORS.card, alignItems: 'center',
-  },
-  dateModalCancelText:  { color: COLORS.textMuted, fontWeight: '600' },
-  dateModalConfirm: {
-    flex: 1, paddingVertical: 11, borderRadius: 10,
-    backgroundColor: COLORS.accent, alignItems: 'center',
-  },
-  dateModalConfirmText: { color: '#fff', fontWeight: '700' },
 
   // Chef Modal
   listModal: {

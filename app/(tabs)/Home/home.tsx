@@ -1,8 +1,13 @@
+import { projectService } from "@/services/projectService";
+import { userService } from "@/services/userService";
+import { AppTheme, useAppTheme } from "@/theme";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   ScrollView,
@@ -11,13 +16,8 @@ import {
   Text,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AddButton from "../../../components/AddButton";
-import { AppTheme, useAppTheme } from "@/theme";
-import { projectService } from "@/services/projectService";
-import { userService } from "@/services/userService";
 
 const { width } = Dimensions.get("window");
 
@@ -226,7 +226,6 @@ export default function Home() {
   const styles = useMemo(() => createStyles(T), [T]);
 
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ nom: string; initials: string } | null>(null);
   const [user, setUser] = useState<{nom: string, role: string} | null>(null);
   const [stats, setStats] = useState({
     activeProjects: 0,
@@ -239,25 +238,7 @@ export default function Home() {
     progression: 0,
   });
 
-  useEffect(() => {
-    fetchData();
-    fetchUser();
-    const init = async () => {
-      setLoading(true);
-      try {
-        const userData = await userService.getCurrentUser();
-        setUser(userData);
-        await fetchData();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const data = await projectService.getGlobalDashboard();
@@ -277,19 +258,29 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUser = async () => {
-    try {
-      const userData = await userService.getCurrentUser();
-      setUser({
-        nom: userData.nom,
-        initials: userData.nom ? userData.nom.charAt(0).toUpperCase() : "?"
-      });
-    } catch (error) {
-      console.error('Error fetching user for home:', error);
-    }
-  };
+  useEffect(() => {
+    const init = async () => { // Renamed to init for clarity
+      setLoading(true);
+      try {
+        const userData = await userService.getCurrentUser();
+        setUser(userData);
+        await fetchData();
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, [fetchData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void fetchData();
+    }, [fetchData])
+  );
 
   const cards: CardConfig[] = [
     { title: t("home.my_tasks"), icon: "check-circle", color: T.accent, dimColor: T.accentGlow, count: stats.myTasks },
@@ -313,7 +304,6 @@ export default function Home() {
                 <Text style={styles.hello}>{t("home.hello")}</Text>
                 <Ionicons name="hand-right-outline" size={16} color={T.orange} />
               </View>
-              <Text style={styles.name}>{user?.nom || "..."}</Text>
               <Text style={styles.name}>{user?.nom || "Utilisateur"}</Text>
             </View>
             <View style={styles.headerRight}>
@@ -321,9 +311,6 @@ export default function Home() {
               <TouchableOpacity style={styles.bellBtn} activeOpacity={0.8}>
                 <Ionicons name="notifications-outline" size={20} color={T.textPrimary} />
                 <View style={styles.notifDot} />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.avatarSmall} activeOpacity={0.8} onPress={() => router.push("/(tabs)/Home/profile")}>
-                <Text style={styles.avatarSmallText}>{user?.initials || "U"}</Text>
               </TouchableOpacity>
               <View style={styles.avatarSmall}>
               <TouchableOpacity activeOpacity={0.8} onPress={() => router.push("/(tabs)/Home/profile")}>
@@ -390,13 +377,6 @@ export default function Home() {
                     styles={styles}
                   />
                 )}
-                <QuickAction
-                  icon="folder-open-outline"
-                  label={t("home.project")}
-                  color={T.green}
-                  onPress={() => router.push("/(tabs)/Home/new-projet")}
-                  styles={styles}
-                />
                 <QuickAction
                   icon="document-text-outline"
                   label={t("home.report")}
@@ -466,12 +446,6 @@ export default function Home() {
           <View style={{ height: 100 }} />
         </ScrollView>
       </SafeAreaView>
-
-      {/* ── FAB ── */}
-      <AddButton
-        backgroundColor={T.accent}
-        onPress={() => router.push("/(tabs)/Home/tasks")}
-      />
     </View>
   );
 }

@@ -1,21 +1,21 @@
+import { authService } from "@/services/authService";
+import { userService } from "@/services/userService";
+import { useAppTheme } from "@/theme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  ActivityIndicator,
   Alert,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { Card, Divider, List, Switch } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { setAppLanguage } from "../../i18n";
-import { useAppTheme } from "@/theme";
-import { userService } from "@/services/userService";
-import { authService } from "@/services/authService";
 
 const LANGUAGES = [
   { code: "fr", label: "Français" },
@@ -52,7 +52,7 @@ export default function ProfileScreen() {
       setUser(userData);
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      Alert.alert(t("common.error"), t("profile.fetch_error") || "Erreur lors de la récupération du profil");
+      Alert.alert(t("common.error"), t("profile.fetch_error"));
     } finally {
       setLoading(false);
     }
@@ -66,7 +66,7 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     Alert.alert(
       t("profile.logout"),
-      t("profile.logout_confirm") || "Voulez-vous vraiment vous déconnecter ?",
+      t("profile.logout_confirm"),
       [
         { text: t("common.cancel"), style: "cancel" },
         {

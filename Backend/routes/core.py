@@ -1,3 +1,6 @@
+import sqlite3
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +13,133 @@ from .. import models, Schemas
 from .login import get_current_user
 
 router = APIRouter(prefix="/api/v1/core", tags=["Core Business - Projets & Tâches"])
+SQLITE_DB_PATH = Path(__file__).resolve().parents[2] / "taskmanager.db"
+
+async def user_can_access_project(db: AsyncSession, project: models.Projet, user: models.User) -> bool:
+    if project.id_administrateur == user.id:
+        return True
+
+    team_result = await db.execute(
+        select(models.Equipe).filter(models.Equipe.id_projet == project.id_projet)
+    )
+    team = team_result.scalar_one_or_none()
+    if not team:
+        return False
+
+    member_result = await db.execute(
+        select(models.Appartient_Equipe).filter(
+            models.Appartient_Equipe.id_equipe == team.id_equipe,
+            models.Appartient_Equipe.id_personnel == user.id,
+        )
+    )
+    return member_result.scalar_one_or_none() is not None
+
+async def ensure_project_access(db: AsyncSession, project: models.Projet, user: models.User):
+    if not await user_can_access_project(db, project, user):
+        raise HTTPException(status_code=403, detail="Vous n'avez pas accès à ce projet")
+
+async def ensure_project_admin(project: models.Projet, user: models.User):
+    if project.id_administrateur != user.id:
+        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de gérer ce projet")
+
+async def get_team_or_404(db: AsyncSession, id_equipe: int) -> models.Equipe:
+    result = await db.execute(select(models.Equipe).filter(models.Equipe.id_equipe == id_equipe))
+    team = result.scalar_one_or_none()
+    if not team:
+        raise HTTPException(status_code=404, detail="Équipe non trouvée")
+    return team
+
+async def get_project_or_404(db: AsyncSession, id_projet: int) -> models.Projet:
+    result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet non trouvé")
+    return project
+
+def serialize_project(project: models.Projet) -> dict:
+    equipe = None
+    if project.equipe:
+        equipe = {
+            "id_equipe": project.equipe.id_equipe,
+            "nom": project.equipe.nom,
+            "description": project.equipe.description,
+            "id_projet": project.equipe.id_projet,
+        }
+
+    return {
+        "id_projet": project.id_projet,
+        "titre": project.titre,
+        "description": project.description,
+        "dateDebut": project.dateDebut,
+        "dateFin": project.dateFin,
+        "priorite": project.priorite,
+        "statut": project.statut,
+        "etat": project.etat,
+        "id_administrateur": project.id_administrateur,
+        "equipe": equipe,
+    }
+
+def get_project_dict_or_404(id_projet: int) -> dict:
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        project = conn.execute(
+            """
+            SELECT id_projet, titre, description, dateDebut, dateFin, priorite, statut, etat, id_administrateur
+            FROM projets
+            WHERE id_projet = ?
+            """,
+            (id_projet,),
+        ).fetchone()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Projet non trouvé")
+
+        equipe = conn.execute(
+            """
+            SELECT id_equipe, nom, description, id_projet
+            FROM equipes
+            WHERE id_projet = ?
+            """,
+            (id_projet,),
+        ).fetchone()
+
+    data = dict(project)
+    data["equipe"] = dict(equipe) if equipe else None
+    return data
+
+def user_can_access_project_dict(project: dict, user: models.User) -> bool:
+    if project["id_administrateur"] == user.id:
+        return True
+
+    if not project["equipe"]:
+        return False
+
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        member = conn.execute(
+            """
+            SELECT 1
+            FROM appartient_equipe
+            WHERE id_equipe = ? AND id_personnel = ?
+            """,
+            (project["equipe"]["id_equipe"], user.id),
+        ).fetchone()
+    return member is not None
+
+def get_team_dict_or_404(id_equipe: int) -> dict:
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        team = conn.execute(
+            """
+            SELECT id_equipe, nom, description, id_projet
+            FROM equipes
+            WHERE id_equipe = ?
+            """,
+            (id_equipe,),
+        ).fetchone()
+
+    if not team:
+        raise HTTPException(status_code=404, detail="Équipe non trouvée")
+    return dict(team)
 
 # --- GESTION DES PROJETS ---
 
@@ -22,8 +152,11 @@ async def get_projects(
     query = (
         select(models.Projet)
         .options(selectinload(models.Projet.equipe))
-        .outerjoin(models.Equipe)
-        .outerjoin(models.Appartient_Equipe)
+        .outerjoin(models.Equipe, models.Equipe.id_projet == models.Projet.id_projet)
+        .outerjoin(
+            models.Appartient_Equipe,
+            models.Appartient_Equipe.id_equipe == models.Equipe.id_equipe,
+        )
         .where(
             or_(
                 models.Projet.id_administrateur == current_user.id,
@@ -42,22 +175,34 @@ async def create_project(
     current_user: models.User = Depends(get_current_user)
 ):
     """Crée un nouveau projet."""
+    # Restriction : Seul un admin peut créer un projet
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent créer des projets")
+
     project_data = project.model_dump()
-    if project_data.get("id_administrateur") is None:
-        project_data["id_administrateur"] = current_user.id
-        
-    db_project = models.Projet(**project_data)
-    db.add(db_project) # type: ignore
-    await db.commit()
-    await db.refresh(db_project)
-    
-    # Refetch with relations for serialization
-    result = await db.execute(
-        select(models.Projet)
-        .options(selectinload(models.Projet.equipe))
-        .filter(models.Projet.id_projet == db_project.id_projet)
-    )
-    return result.scalar_one()
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO projets (
+                titre, description, dateDebut, dateFin, priorite, statut, etat, id_administrateur
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                project_data["titre"],
+                project_data.get("description"),
+                project_data["dateDebut"].isoformat(),
+                project_data["dateFin"].isoformat(),
+                project_data.get("priorite", "moyenne"),
+                project_data.get("statut", "actif"),
+                project_data.get("etat", "en_cours"),
+                current_user.id,
+            ),
+        )
+        conn.commit()
+        project_id = cursor.lastrowid
+
+    return get_project_dict_or_404(project_id)
 
 @router.get("/projets/{id_projet}", response_model=Schemas.ProjetOut)
 async def get_project(
@@ -66,35 +211,10 @@ async def get_project(
     current_user: models.User = Depends(get_current_user)
 ):
     """Récupère un projet spécifique par son ID."""
-    result = await db.execute(
-        select(models.Projet)
-        .options(selectinload(models.Projet.equipe))
-        .filter(models.Projet.id_projet == id_projet)
-    )
-    db_project = result.scalar_one_or_none()
-    if not db_project:
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
-    
-    # Vérification des permissions
-    # L'utilisateur doit être soit l'admin, soit membre de l'équipe
-    is_admin = db_project.id_administrateur == current_user.id
-    
-    is_member = False
-    if db_project.equipe:
-        member_result = await db.execute(
-            select(models.Appartient_Equipe)
-            .filter(
-                models.Appartient_Equipe.id_equipe == db_project.equipe.id_equipe,
-                models.Appartient_Equipe.id_personnel == current_user.id
-            )
-        )
-        if member_result.scalar_one_or_none():
-            is_member = True
-
-    if not is_admin and not is_member:
+    project = get_project_dict_or_404(id_projet)
+    if not user_can_access_project_dict(project, current_user):
         raise HTTPException(status_code=403, detail="Vous n'avez pas accès à ce projet")
-
-    return db_project
+    return project
 
 @router.put("/projets/{id_projet}", response_model=Schemas.ProjetOut)
 async def update_project(
@@ -104,28 +224,43 @@ async def update_project(
     current_user: models.User = Depends(get_current_user)
 ):
     """Met à jour un projet existant."""
-    result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
-    db_project = result.scalar_one_or_none()
-    if not db_project:
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
-    
-    # Vérification des permissions (seul l'admin peut modifier)
-    if db_project.id_administrateur != current_user.id:
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent modifier un projet")
+
+    project = get_project_dict_or_404(id_projet)
+    if project["id_administrateur"] != current_user.id:
         raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de modifier ce projet")
 
     update_data = project_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_project, key, value)
-    
-    await db.commit()
-    
-    # Refetch with relations for serialization
-    result = await db.execute(
-        select(models.Projet)
-        .options(selectinload(models.Projet.equipe))
-        .filter(models.Projet.id_projet == id_projet)
-    )
-    return result.scalar_one()
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE projets
+            SET titre = ?,
+                description = ?,
+                dateDebut = ?,
+                dateFin = ?,
+                priorite = ?,
+                statut = ?,
+                etat = ?,
+                id_administrateur = ?
+            WHERE id_projet = ?
+            """,
+            (
+                update_data["titre"],
+                update_data.get("description"),
+                update_data["dateDebut"].isoformat(),
+                update_data["dateFin"].isoformat(),
+                update_data.get("priorite", "moyenne"),
+                update_data.get("statut", "actif"),
+                update_data.get("etat", "en_cours"),
+                current_user.id,
+                id_projet,
+            ),
+        )
+        conn.commit()
+
+    return get_project_dict_or_404(id_projet)
 
 @router.delete("/projets/{id_projet}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
@@ -139,9 +274,9 @@ async def delete_project(
     if not db_project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
     
-    # Vérification des permissions
-    if db_project.id_administrateur != current_user.id:
-        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de supprimer ce projet")
+    # Vérification des permissions : l'admin du projet ou un admin global
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent supprimer un projet")
 
     await db.delete(db_project)
     await db.commit()
@@ -158,9 +293,12 @@ async def get_tasks(
     query = (
         select(models.Tache)
         .options(selectinload(models.Tache.projet).selectinload(models.Projet.equipe))
-        .join(models.Projet)
-        .outerjoin(models.Equipe)
-        .outerjoin(models.Appartient_Equipe)
+        .join(models.Projet, models.Tache.id_projet == models.Projet.id_projet)
+        .outerjoin(models.Equipe, models.Equipe.id_projet == models.Projet.id_projet)
+        .outerjoin(
+            models.Appartient_Equipe,
+            models.Appartient_Equipe.id_equipe == models.Equipe.id_equipe,
+        )
         .where(
             or_(
                 models.Projet.id_administrateur == current_user.id,
@@ -174,8 +312,16 @@ async def get_tasks(
 
 
 @router.post("/taches", response_model=Schemas.TacheOut, status_code=status.HTTP_201_CREATED)
-async def create_task(task: Schemas.TacheCreate, db: AsyncSession = Depends(get_db)):
+async def create_task(
+    task: Schemas.TacheCreate, 
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Ajoute une tâche à un projet existant."""
+    # Vérifier si l'utilisateur est admin
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent créer des tâches")
+
     db_task = models.Tache(**task.model_dump())
     db.add(db_task) # type: ignore
     await db.commit()
@@ -183,13 +329,23 @@ async def create_task(task: Schemas.TacheCreate, db: AsyncSession = Depends(get_
     return db_task
 
 @router.put("/taches/{id_tache}", response_model=Schemas.TacheOut)
-async def update_task(id_tache: int, task_update: Schemas.TacheUpdate, db: AsyncSession = Depends(get_db)):
+async def update_task(
+    id_tache: int, 
+    task_update: Schemas.TacheUpdate, 
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Mise à jour flexible d'une tâche (Kanban, progression, statut)."""
     result = await db.execute(select(models.Tache).filter(models.Tache.id_tache == id_tache))
     db_task = result.scalar_one_or_none()
     if not db_task:
         raise HTTPException(status_code=404, detail="Tâche non trouvée")
     
+    # Vérifier les permissions
+    # Seul un admin peut modifier la tâche
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent modifier les tâches")
+
     update_data = task_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_task, key, value)
@@ -204,13 +360,22 @@ async def update_task(id_tache: int, task_update: Schemas.TacheUpdate, db: Async
     return result.scalar_one()
 
 @router.delete("/taches/{id_tache}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_task(id_tache: int, db: AsyncSession = Depends(get_db)):
+async def delete_task(
+    id_tache: int, 
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Supprime une tâche existante."""
     result = await db.execute(select(models.Tache).filter(models.Tache.id_tache == id_tache))
     db_task = result.scalar_one_or_none()
     if not db_task:
         raise HTTPException(status_code=404, detail="Tâche non trouvée")
     
+    # Vérifier les permissions
+    # Seul un admin peut supprimer la tâche
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent supprimer des tâches")
+
     await db.delete(db_task)
     await db.commit()
     return {"message": "Tâche supprimée avec succès"}
@@ -218,15 +383,42 @@ async def delete_task(id_tache: int, db: AsyncSession = Depends(get_db)):
 # --- COMMENTAIRES ---
 
 @router.post("/taches/{id_tache}/commentaires", response_model=Schemas.CommentaireOut)
-async def add_commentaire(id_tache: int, comm: Schemas.CommentaireCreate, db: AsyncSession = Depends(get_db)):
+async def add_commentaire(
+    id_tache: int,
+    comm: Schemas.CommentaireCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Ajoute un commentaire à une tâche."""
-    comm_data = comm.model_dump()
-    user_id = comm_data.pop("id_utilisateur")
-    db_comm = models.Commentaire(**comm_data, id_personnel=user_id, id_tache=id_tache) # type: ignore
+    if current_user.role != "personnel":
+        raise HTTPException(status_code=403, detail="Seul un membre du personnel peut commenter")
+
+    task_result = await db.execute(
+        select(models.Tache)
+        .options(selectinload(models.Tache.projet))
+        .filter(models.Tache.id_tache == id_tache)
+    )
+    task = task_result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404, detail="Tâche non trouvée")
+
+    await ensure_project_access(db, task.projet, current_user)
+
+    db_comm = models.Commentaire(
+        contenu=comm.contenu,
+        id_personnel=current_user.id,
+        id_tache=id_tache,
+    )
     db.add(db_comm) # type: ignore
     await db.commit()
     await db.refresh(db_comm)
-    return db_comm
+    return {
+        "id_commentaire": db_comm.id_commentaire,
+        "contenu": db_comm.contenu,
+        "date_creation": db_comm.date_creation,
+        "id_tache": db_comm.id_tache,
+        "id_utilisateur": db_comm.id_personnel,
+    }
 
 # --- DASHBOARD ANALYTICS ---
 
@@ -298,12 +490,14 @@ async def get_global_dashboard(
     }
 
 @router.get("/projets/{id_projet}/dashboard", response_model=Schemas.DashboardResponse)
-async def get_project_dashboard(id_projet: int, db: AsyncSession = Depends(get_db)):
+async def get_project_dashboard(
+    id_projet: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Point d'accès critique pour les KPIs visuels du frontend."""
-    result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
+    project = await get_project_or_404(db, id_projet)
+    await ensure_project_access(db, project, current_user)
 
     # Requêtes d'agrégation optimisées (using async session)
     total_tasks_result = await db.execute(select(func.count(models.Tache.id_tache)).filter(models.Tache.id_projet == id_projet))
@@ -361,61 +555,87 @@ async def create_team(
     current_user: models.User = Depends(get_current_user)
 ):
     """Crée une nouvelle équipe pour un projet."""
-    # Check if project exists
-    project_result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == team.id_projet))
-    project = project_result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Projet non trouvé")
+    project = get_project_dict_or_404(team.id_projet)
+    if project["id_administrateur"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de gérer ce projet")
 
-    # Check if a team already exists for this project (unique constraint)
-    existing_team_result = await db.execute(select(models.Equipe).filter(models.Equipe.id_projet == team.id_projet))
-    if existing_team_result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Une équipe existe déjà pour ce projet")
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        existing_team = conn.execute(
+            "SELECT id_equipe FROM equipes WHERE id_projet = ?",
+            (team.id_projet,),
+        ).fetchone()
+        if existing_team:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Une équipe existe déjà pour ce projet")
 
-    team_data = team.model_dump()
-    # team_data["id_personnel_createur"] = current_user.id # Removed as per schema
-    
-    db_team = models.Equipe(**team_data)
-    db.add(db_team) # type: ignore
-    await db.commit()
-    await db.refresh(db_team)
-    return db_team
+        cursor = conn.execute(
+            """
+            INSERT INTO equipes (nom, description, id_projet, id_personnel_createur)
+            VALUES (?, ?, ?, ?)
+            """,
+            (team.nom, team.description, team.id_projet, current_user.id),
+        )
+        conn.commit()
+        team_id = cursor.lastrowid
+
+    return get_team_dict_or_404(team_id)
 
 @router.post("/equipes/{id_equipe}/membres", response_model=Schemas.AppartientEquipeOut, status_code=status.HTTP_201_CREATED)
-async def add_team_member(id_equipe: int, member_data: Schemas.AppartientEquipeCreate, db: AsyncSession = Depends(get_db)):
+async def add_team_member(
+    id_equipe: int,
+    member_data: Schemas.AppartientEquipeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Ajoute un utilisateur à une équipe."""
     if id_equipe != member_data.id_equipe:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="L'ID de l'équipe dans l'URL ne correspond pas à celui du corps de la requête.")
 
-    # Check if team exists
-    team_result = await db.execute(select(models.Equipe).filter(models.Equipe.id_equipe == id_equipe))
-    team = team_result.scalar_one_or_none()
-    if not team:
-        raise HTTPException(status_code=404, detail="Équipe non trouvée")
+    team = get_team_dict_or_404(id_equipe)
+    project = get_project_dict_or_404(team["id_projet"])
+    if project["id_administrateur"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de gérer ce projet")
 
-    # Check if user exists
-    user_result = await db.execute(select(models.User).filter(models.User.id == member_data.id_utilisateur))
-    user = user_result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    with sqlite3.connect(SQLITE_DB_PATH) as conn:
+        user = conn.execute(
+            "SELECT id, role FROM users WHERE id = ?",
+            (member_data.id_utilisateur,),
+        ).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+        if user[1] != "personnel":
+            raise HTTPException(status_code=400, detail="Seuls les membres du personnel peuvent être ajoutés à une équipe")
 
-    # Check if user is already a member
-    existing_member_result = await db.execute(select(models.Appartient_Equipe).filter(
-        models.Appartient_Equipe.id_equipe == id_equipe,
-        models.Appartient_Equipe.id_personnel == member_data.id_utilisateur
-    ))
-    if existing_member_result.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="L'utilisateur est déjà membre de cette équipe.")
+        existing_member = conn.execute(
+            """
+            SELECT 1
+            FROM appartient_equipe
+            WHERE id_equipe = ? AND id_personnel = ?
+            """,
+            (id_equipe, member_data.id_utilisateur),
+        ).fetchone()
+        if existing_member:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="L'utilisateur est déjà membre de cette équipe.")
 
-    db_member = models.Appartient_Equipe(id_equipe=id_equipe, id_personnel=member_data.id_utilisateur)
-    db.add(db_member) # type: ignore
-    await db.commit()
-    await db.refresh(db_member)
-    return db_member
+        conn.execute(
+            "INSERT INTO appartient_equipe (id_equipe, id_personnel) VALUES (?, ?)",
+            (id_equipe, member_data.id_utilisateur),
+        )
+        conn.commit()
+
+    return {"id_equipe": id_equipe, "id_utilisateur": member_data.id_utilisateur}
 
 @router.delete("/equipes/{id_equipe}/membres/{id_utilisateur}", status_code=status.HTTP_204_NO_CONTENT)
-async def remove_team_member(id_equipe: int, id_utilisateur: int, db: AsyncSession = Depends(get_db)):
+async def remove_team_member(
+    id_equipe: int,
+    id_utilisateur: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Supprime un utilisateur d'une équipe."""
+    team = await get_team_or_404(db, id_equipe)
+    project = await get_project_or_404(db, team.id_projet)
+    await ensure_project_admin(project, current_user)
+
     member_result = await db.execute(select(models.Appartient_Equipe).filter(
         models.Appartient_Equipe.id_equipe == id_equipe,
         models.Appartient_Equipe.id_personnel == id_utilisateur
@@ -430,16 +650,22 @@ async def remove_team_member(id_equipe: int, id_utilisateur: int, db: AsyncSessi
     return {"message": "Membre supprimé de l'équipe avec succès"}
 
 @router.get("/equipes/{id_equipe}/membres", response_model=List[Schemas.UserResponse])
-async def get_team_members(id_equipe: int, db: AsyncSession = Depends(get_db)):
+async def get_team_members(
+    id_equipe: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
     """Récupère la liste des membres d'une équipe."""
-    team_result = await db.execute(select(models.Equipe).filter(models.Equipe.id_equipe == id_equipe))
-    team = team_result.scalar_one_or_none()
-    if not team:
-        raise HTTPException(status_code=404, detail="Équipe non trouvée")
+    team = await get_team_or_404(db, id_equipe)
+    project = await get_project_or_404(db, team.id_projet)
+    await ensure_project_access(db, project, current_user)
 
     members_result = await db.execute(
         select(models.User)
-        .join(models.Appartient_Equipe)
+        .join(
+            models.Appartient_Equipe,
+            models.User.id == models.Appartient_Equipe.id_personnel,
+        )
         .filter(models.Appartient_Equipe.id_equipe == id_equipe)
     )
     members = members_result.scalars().all()
@@ -454,16 +680,11 @@ async def sync_team_members(
 ):
     """Synchronise les membres d'une équipe (remplace les anciens par les nouveaux)."""
     # 1. Vérifier si l'équipe existe
-    team_result = await db.execute(select(models.Equipe).filter(models.Equipe.id_equipe == id_equipe))
-    team = team_result.scalar_one_or_none()
-    if not team:
-        raise HTTPException(status_code=404, detail="Équipe non trouvée")
+    team = await get_team_or_404(db, id_equipe)
     
     # 2. Vérifier les permissions (admin du projet ou créateur de l'équipe)
-    project_result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == team.id_projet))
-    project = project_result.scalar_one_or_none()
-    if not project or (project.id_administrateur != current_user.id):
-        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de gérer les membres de cette équipe")
+    project = await get_project_or_404(db, team.id_projet)
+    await ensure_project_admin(project, current_user)
 
     # 3. Supprimer tous les membres actuels
     from sqlalchemy import delete
@@ -474,7 +695,12 @@ async def sync_team_members(
     # 4. Ajouter les nouveaux membres
     if user_ids:
         # Vérifier que les utilisateurs existent
-        users_check = await db.execute(select(models.User.id).where(models.User.id.in_(user_ids)))
+        users_check = await db.execute(
+            select(models.User.id).where(
+                models.User.id.in_(user_ids),
+                models.User.role == "personnel"
+            )
+        )
         existing_ids = [row for row in users_check.scalars().all()]
         
         new_members = [

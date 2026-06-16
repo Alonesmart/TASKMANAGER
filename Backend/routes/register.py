@@ -4,14 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import jwt
 from ..Schemas import UserRegister, Token
-from ..database import get_db, pwd_context
+from ..database import get_db, pwd_context, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from .. import models
 
 router = APIRouter()
-
-SECRET_KEY                  = "changez_cette_cle_en_production_!!!"
-ALGORITHM                   = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
 # Helpers 

@@ -85,7 +85,6 @@ class Tache(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     priorite: Mapped[str] = mapped_column(String(50), default="moyenne")
     statut: Mapped[str] = mapped_column(String(50), default="a_faire")
-    status: Mapped[str] = mapped_column(String(50), default="todo")
     echeance: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     progression: Mapped[int] = mapped_column(Integer, default=0)
     etat: Mapped[str] = mapped_column(String(50), default="active")

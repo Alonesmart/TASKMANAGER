@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,7 +10,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AddButton from "../../../components/AddButton";
 import { useAppTheme } from "@/theme";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
@@ -64,7 +62,6 @@ const EmptyState = ({ filterKey, t }: { filterKey: (typeof FILTER_KEYS)[number];
 
 // ─── Écran principal ──────────────────────────────────────────────────────────
 export default function RapportScreen() {
-  const router = useRouter();
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const [activeFilter, setActiveFilter] = useState<(typeof FILTER_KEYS)[number]>("all");
@@ -123,11 +120,6 @@ export default function RapportScreen() {
       <View style={styles.content}>
         <EmptyState filterKey={activeFilter} t={t} />
       </View>
-
-      <AddButton
-        backgroundColor={T.accent}
-        onPress={() => router.push("/(tabs)/Home/new-report")}
-      />
     </SafeAreaView>
   );
 }

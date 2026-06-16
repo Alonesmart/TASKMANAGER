@@ -1,3 +1,4 @@
+import { SimpleDatePicker } from '@/components/SimpleDatePicker';
 import { projectService } from '@/services/projectService';
 import { userService } from '@/services/userService';
 import { useAppTheme } from "@/theme";
@@ -7,112 +8,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
-  Modal,
+  Alert,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Alert,
+  View
 } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
-
-type SimpleDatePickerProps = {
-  label: string;
-  value: Date | null;
-  onChange: (date: any) => void;
-  styles: any;
-  colors: any;
-  t: (key: string, options?: any) => any;
-};
-
-// ─── SIMPLE DATE PICKER ────────────────────────────────────────────────────────
-const SimpleDatePicker = ({ label, value, onChange, styles, colors, t }: SimpleDatePickerProps) => {
-  const [show, setShow]   = useState(false);
-  const today             = new Date();
-  const [year, setYear]   = useState(value ? value.getFullYear() : today.getFullYear());
-  const [month, setMonth] = useState(value ? value.getMonth()    : today.getMonth());
-  const [day, setDay]     = useState(value ? value.getDate()     : today.getDate());
-
-  const translatedMonths = t("date.months_short", { returnObjects: true });
-  const monthNames = Array.isArray(translatedMonths) && translatedMonths.length === 12
-    ? translatedMonths
-    : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const confirm = () => { onChange(new Date(year, month, day)); setShow(false); };
-
-  const fmt = (d: Date | null) =>
-    d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`
-      : t("date.select");
-
-  return (
-    <>
-      <TouchableOpacity style={styles.dateBtn} onPress={() => setShow(true)} activeOpacity={0.8}>
-        <Ionicons name="calendar-outline" size={16} color={colors.textMuted} />
-        <Text style={[styles.dateBtnText, !value && { color: colors.textDim }]}>{fmt(value)}</Text>
-      </TouchableOpacity>
-
-      <Modal visible={show} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.dateModal}>
-            <Text style={styles.dateModalTitle}>{label}</Text>
-
-            <Text style={styles.dpLabel}>{t("date.month")}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {monthNames.map((m, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={[styles.dpChip, month === i && styles.dpChipActive]}
-                  onPress={() => { setMonth(i); if (day > new Date(year, i+1, 0).getDate()) setDay(1); }}
-                >
-                  <Text style={[styles.dpChipText, month === i && styles.dpChipTextActive]}>{m}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.dpLabel}>{t("date.day")}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => (
-                <TouchableOpacity
-                  key={d}
-                  style={[styles.dpChip, styles.dpChipSm, day === d && styles.dpChipActive]}
-                  onPress={() => setDay(d)}
-                >
-                  <Text style={[styles.dpChipText, day === d && styles.dpChipTextActive]}>
-                    {String(d).padStart(2,'0')}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            <Text style={styles.dpLabel}>{t("date.year")}</Text>
-            <View style={styles.yearRow}>
-              <TouchableOpacity onPress={() => setYear(y => y-1)} style={styles.yearBtn}>
-                <Text style={styles.yearBtnText}>‹</Text>
-              </TouchableOpacity>
-              <Text style={styles.yearValue}>{year}</Text>
-              <TouchableOpacity onPress={() => setYear(y => y+1)} style={styles.yearBtn}>
-                <Text style={styles.yearBtnText}>›</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setShow(false)} style={styles.modalCancel}>
-                <Text style={styles.modalCancelText}>{t("date.cancel")}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={confirm} style={styles.modalConfirm}>
-                <Text style={styles.modalConfirmText}>{t("date.confirm")}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
-};
 
 // ─── NOUVELLE TÂCHE ────────────────────────────────────────────────────────────
 export default function NouvelleTacheScreen() {
@@ -226,15 +131,6 @@ export default function NouvelleTacheScreen() {
     return d.toISOString().split('T')[0];
   };
 
-  const mapStatutToStatus = (s: string) => {
-    switch (s) {
-      case 'a_faire': return 'todo';
-      case 'en_cours': return 'in_progress';
-      case 'terminees': return 'completed';
-      default: return 'todo';
-    }
-  };
-
   // ── Sauvegarder → API call ──────────────────────────────────────────────
   const handleSauvegarder = async () => {
     if (!titre.trim()) { Alert.alert(t("common.error"), t("new_tasks.title_required")); return; }
@@ -248,7 +144,6 @@ export default function NouvelleTacheScreen() {
         description: description.trim(),
         priorite: priorite,
         statut: currentStatut,
-        status: mapStatutToStatus(currentStatut),
         echeance: formatDateForAPI(dateFin),
         id_projet: idProjet,
         progression: isEditMode ? 0 : 0, // Placeholder
@@ -264,7 +159,7 @@ export default function NouvelleTacheScreen() {
       router.back();
     } catch (error: any) {
       console.error('Error saving task:', error);
-      Alert.alert(t("common.error"), error.response?.data?.detail || "Erreur lors de la sauvegarde");
+      Alert.alert(t("common.error"), error.response?.data?.detail || t("common.error"));
     } finally {
       setSaving(false);
     }
@@ -320,7 +215,7 @@ export default function NouvelleTacheScreen() {
         {loadingProjets ? (
           <ActivityIndicator size="small" color={COLORS.accent} style={{ alignSelf: 'flex-start', marginBottom: 20 }} />
         ) : projets.length === 0 ? (
-          <Text style={[styles.label, { color: COLORS.danger, marginBottom: 20 }]}>Aucun projet disponible. Créez d'abord un projet.</Text>
+          <Text style={[styles.label, { color: COLORS.danger, marginBottom: 20 }]}>Aucun projet disponible. Créez d&apos;abord un projet.</Text>
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
             {projets.map((p) => (
@@ -377,11 +272,11 @@ export default function NouvelleTacheScreen() {
         <View style={styles.datesRow}>
           <View style={styles.dateCol}>
             <Text style={styles.label}>{t("new_tasks.start_date_label")}</Text>
-            <SimpleDatePicker label={t("new_tasks.start_date_label")} value={dateDebut} onChange={setDateDebut} styles={styles} colors={COLORS} t={t} />
+            <SimpleDatePicker label={t("new_tasks.start_date_label")} value={dateDebut} onChange={setDateDebut} />
           </View>
           <View style={styles.dateCol}>
             <Text style={styles.label}>{t("new_tasks.end_date_label")}</Text>
-            <SimpleDatePicker label={t("new_tasks.end_date_label")} value={dateFin} onChange={setDateFin} styles={styles} colors={COLORS} t={t} />
+            <SimpleDatePicker label={t("new_tasks.end_date_label")} value={dateFin} onChange={setDateFin} />
           </View>
         </View>
 
@@ -441,43 +336,4 @@ StyleSheet.create({
 
   datesRow: { flexDirection: 'row', gap: 14 },
   dateCol:  { flex: 1 },
-  dateBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.card, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 12,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  dateBtnText: { color: COLORS.text, fontSize: 13, flex: 1 },
-
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.65)',
-    justifyContent: 'center', alignItems: 'center', padding: 20,
-  },
-  dateModal: {
-    backgroundColor: COLORS.surface, borderRadius: 16, padding: 20,
-    width: '100%', borderWidth: 1, borderColor: COLORS.border,
-  },
-  dateModalTitle: { color: COLORS.text, fontWeight: '700', fontSize: 16, marginBottom: 16 },
-  dpLabel:        { color: COLORS.textMuted, fontSize: 12, fontWeight: '600', marginBottom: 6 },
-  dpChip: {
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
-    backgroundColor: COLORS.card, marginRight: 6,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  dpChipSm:       { paddingHorizontal: 9 },
-  dpChipActive:   { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  dpChipText:     { color: COLORS.textMuted, fontSize: 13 },
-  dpChipTextActive: { color: '#fff', fontWeight: '700' },
-  yearRow: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 20, marginBottom: 20,
-  },
-  yearBtn:     { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.card, justifyContent: 'center', alignItems: 'center' },
-  yearBtnText: { color: COLORS.text, fontSize: 22, fontWeight: '300' },
-  yearValue:   { color: COLORS.text, fontSize: 18, fontWeight: '700', minWidth: 60, textAlign: 'center' },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  modalCancel:  { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.card, alignItems: 'center' },
-  modalCancelText:  { color: COLORS.textMuted, fontWeight: '600' },
-  modalConfirm:     { flex: 1, paddingVertical: 11, borderRadius: 10, backgroundColor: COLORS.accent, alignItems: 'center' },
-  modalConfirmText: { color: '#fff', fontWeight: '700' },
 });
