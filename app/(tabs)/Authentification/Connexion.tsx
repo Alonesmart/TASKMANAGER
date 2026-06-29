@@ -24,7 +24,7 @@ export default function LoginScreen() {
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
  
-  // ✅ Vérification automatique de la session au lancement
+  
   useEffect(() => {
     const checkExistingAuth = async () => {
       const authenticated = await authService.isAuthenticated();
@@ -35,13 +35,11 @@ export default function LoginScreen() {
     checkExistingAuth();
   }, [router]);
 
-  // ✅ States renommés selon la DB (nom / motdepasse)
   const [email, setEmail] = useState("");
   const [motdepasse, setMotdepasse] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // ✅ Fonction de connexion corrigée
   const handleLogin = async () => {
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -54,7 +52,7 @@ export default function LoginScreen() {
       setLoading(true);
       console.log("Appel authService.login...");
  
-      // Utilisation du service centralisé
+  
       const result = await authService.login(normalizedEmail, motdepasse);
       console.log("Connexion réussie, résultat:", result);
  

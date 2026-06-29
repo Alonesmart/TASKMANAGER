@@ -1,22 +1,17 @@
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 const BACKEND_PORT = "8000";
-
-function getExpoDevServerHost() {
-  const constants = Constants as any;
-  const hostUri =
-    constants.expoConfig?.hostUri ??
-    constants.manifest2?.extra?.expoClient?.hostUri ??
-    constants.manifest?.debuggerHost;
-
-  return typeof hostUri === "string" ? hostUri.split(":")[0] : undefined;
-}
+// IP de la machine hôte du backend
+const COMPUTER_IP = "192.168.1.158"; 
 
 const configuredUrl = process.env.EXPO_PUBLIC_BACKEND_URL?.replace(/\/$/, "");
-const devServerHost = getExpoDevServerHost();
 
-export const API_URL =
-  configuredUrl ??
-  (devServerHost
-    ? `http://${devServerHost}:${BACKEND_PORT}`
-    : `http://127.0.0.1:${BACKEND_PORT}`);
+// Si EXPO_PUBLIC_BACKEND_URL est défini dans le .env, on l'utilise.
+// Sinon, on construit l'URL avec l'IP fixe.
+export const API_URL = configuredUrl ?? `http://${COMPUTER_IP}:${BACKEND_PORT}`;
+
+if (__DEV__) {
+  console.info(`[API] Backend URL: ${API_URL}`);
+  console.info(`[API] Configured URL (EXPO_PUBLIC_BACKEND_URL): ${configuredUrl || "not set"}`);
+}

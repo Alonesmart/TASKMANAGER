@@ -25,6 +25,7 @@ class User(Base):
     reset_tokens: Mapped[List["ResetToken"]] = relationship("ResetToken", back_populates="user")
     reunions: Mapped[List["Reunion"]] = relationship("Reunion", secondary="participation_reunion", back_populates="participants")
     equipes_creees: Mapped[List["Equipe"]] = relationship("Equipe", back_populates="createur")
+    taches_assignees: Mapped[List["TacheAssignation"]] = relationship("TacheAssignation", back_populates="utilisateur")
 
     __mapper_args__ = {
         "polymorphic_on": role,
@@ -85,6 +86,7 @@ class Tache(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     priorite: Mapped[str] = mapped_column(String(50), default="moyenne")
     statut: Mapped[str] = mapped_column(String(50), default="a_faire")
+    status: Mapped[str] = mapped_column(String(50), default="a_faire")
     echeance: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     progression: Mapped[int] = mapped_column(Integer, default=0)
     etat: Mapped[str] = mapped_column(String(50), default="active")
@@ -93,6 +95,16 @@ class Tache(Base):
     projet: Mapped["Projet"] = relationship("Projet", back_populates="taches", lazy="selectin")
     commentaires: Mapped[List["Commentaire"]] = relationship("Commentaire", back_populates="tache", cascade="all, delete-orphan")
     notifications_declenchees: Mapped[List["Notification"]] = relationship("Notification", back_populates="tache_origine")
+    assignations: Mapped[List["TacheAssignation"]] = relationship("TacheAssignation", back_populates="tache", cascade="all, delete-orphan", lazy="selectin")
+
+
+class TacheAssignation(Base):
+    __tablename__ = "tache_assignations"
+    id_tache: Mapped[int] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="CASCADE"), primary_key=True)
+    id_utilisateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+    tache: Mapped["Tache"] = relationship("Tache", back_populates="assignations")
+    utilisateur: Mapped["User"] = relationship("User", back_populates="taches_assignees", lazy="selectin")
 
 
 class Equipe(Base):

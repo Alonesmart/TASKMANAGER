@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { projectService } from '@/services/projectService';
+import { teamService } from '@/services/teamService';
 import { userService } from '@/services/userService';
 import { useAppTheme } from "@/theme";
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -36,7 +37,7 @@ type ProjectStatus = 'actif' | 'pause' | 'termine';
 export default function NouveauProjetScreen() {
   const router = useRouter();
   const { id, edit } = useLocalSearchParams();
-  const isEditing = edit === 'true' && !!id;
+  const isEditing = useMemo(() => edit === 'true' && !!id, [id, edit]);
 
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
@@ -67,15 +68,59 @@ export default function NouveauProjetScreen() {
   const [priorite, setPriorite]       = useState<ProjectPriority | null>(null);
   const [statut, setStatut]           = useState<ProjectStatus | null>(null);
   const [chef, setChef]               = useState<User | null>(null);
-  const [couleur, setCouleur]         = useState<string | null>(null);
-  const [icone, setIcone]             = useState<string | null>(null);
   const [chefModal, setChefModal]     = useState(false);
   const [membresModal, setMembresModal] = useState(false);
   const [loading, setLoading]         = useState(false);
   const [fetching, setFetching]       = useState(false);
   const [users, setUsers]             = useState<User[]>([]);
   const [userSearchQuery, setUserSearchQuery] = useState('');
+
+  const filteredUsers = useMemo(() => {
+    return users.filter(u => 
+      u.nom.toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+      u.email.toLowerCase().includes(userSearchQuery.toLowerCase())
+    );
+  }, [users, userSearchQuery]);
+  const filteredAdmins = useMemo(() => filteredUsers.filter(u => u.role === 'admin'), [filteredUsers]);
+  const filteredMembers = useMemo(() => filteredUsers.filter(u => u.role === 'personnel'), [filteredUsers]);
+
   const [teamId, setTeamId]           = useState<number | null>(null);
+
+  const fetchUsers = async () => {
+    setFetching(true);
+    try {
+      const data = await userService.getUsers();
+      const processed = data.map((u: any) => ({
+        id: u.id,
+        nom: u.nom,
+        email: u.email,
+        role: u.role,
+        initiale: u.nom ? u.nom.charAt(0).toUpperCase() : '?'
+      }));
+      setUsers(processed);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      Alert.alert(t("common.error"), t("new_project.fetch_users_error") || "Erreur lors de la récupération des utilisateurs");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const user = await userService.getCurrentUser();
+      const processedChef = {
+        id: user.id,
+        nom: user.nom,
+        email: user.email,
+        role: user.role,
+        initiale: user.nom ? user.nom.charAt(0).toUpperCase() : '?'
+      };
+      setChef(processedChef);
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+    }
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -85,49 +130,7 @@ export default function NouveauProjetScreen() {
       }
     };
     init();
-  }, []);
-
-  useEffect(() => {
-    if (isEditing && users.length > 0) {
-      fetchProjectDetails();
-    }
-  }, [id, users]);
-
-  const fetchUsers = async () => {
-    try {
-      const data = await userService.getUsers();
-      const processedUsers = data.map((u: any) => ({
-        ...u,
-        initiale: u.nom ? u.nom.charAt(0).toUpperCase() : '?'
-      }));
-      setUsers(processedUsers);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
-
-  const fetchCurrentUser = async () => {
-    try {
-      const me = await userService.getCurrentUser();
-      if (me) {
-        const processedMe = {
-          ...me,
-          initiale: me.nom ? me.nom.charAt(0).toUpperCase() : '?'
-        };
-        setChef(processedMe);
-      }
-    } catch (error) {
-      console.error('Error fetching current user:', error);
-    }
-  };
-
-  const filteredUsers = useMemo(() => {
-    if (!userSearchQuery.trim()) return users;
-    return users.filter(u => 
-      u.nom.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
-      u.email.toLowerCase().includes(userSearchQuery.toLowerCase())
-    );
-  }, [users, userSearchQuery]);
+  }, [isEditing]);
 
   const fetchProjectDetails = async () => {
     setFetching(true);
@@ -139,8 +142,8 @@ export default function NouveauProjetScreen() {
         setDescription(project.description || '');
         setDateDebut(new Date(project.dateDebut));
         setDateFin(new Date(project.dateFin));
-        setStatut(project.statut);
-        setPriorite(project.priorite);
+        setStatut(project.statut as ProjectStatus);
+        setPriorite(project.priorite as ProjectPriority);
         
         // Trouver le chef
         if (project.id_administrateur) {
@@ -151,7 +154,7 @@ export default function NouveauProjetScreen() {
         // Charger les membres de l'équipe
         if (project.equipe) {
           setTeamId(project.equipe.id_equipe);
-          const teamMembers = await projectService.getTeamMembers(project.equipe.id_equipe);
+          const teamMembers = await teamService.getTeamMembers(project.equipe.id_equipe);
           const processedMembers = teamMembers.map((u: any) => ({
             ...u,
             initiale: u.nom ? u.nom.charAt(0).toUpperCase() : '?'
@@ -166,6 +169,12 @@ export default function NouveauProjetScreen() {
       setFetching(false);
     }
   };
+
+  useEffect(() => {
+    if (isEditing && users.length > 0) {
+      fetchProjectDetails();
+    }
+  }, [id, users, isEditing]);
 
   const priorites = [
     { key: 'haute',   label: t("new_project.priority_high"),   color: COLORS.danger,  icon: 'flag' },
@@ -224,7 +233,8 @@ const formatDateForAPI = (d: Date | null) => {
         dateFin: dateFinApi,
         statut: statut || 'actif',
         priorite: priorite || 'moyenne',
-        ...(isEditing && chef?.id ? { id_administrateur: chef.id } : {})
+        etat: 'en_cours',
+        ...(chef?.id ? { id_administrateur: chef.id } : {})
       };
 
       if (isEditing) {
@@ -232,7 +242,7 @@ const formatDateForAPI = (d: Date | null) => {
         
         // Mise à jour des membres de l'équipe si l'équipe existe
         if (teamId) {
-          await projectService.syncTeamMembers(teamId, membres.map(m => m.id));
+          await teamService.syncTeamMembers(teamId, membres.map(m => m.id));
         }
         
         Alert.alert(t("common.success"), t("new_project.update_success") || "Projet mis à jour avec succès");
@@ -240,7 +250,7 @@ const formatDateForAPI = (d: Date | null) => {
         const newProject = await projectService.createProject(projectData);
         
         // 2. Création de l'équipe associée (seulement à la création)
-        const team = await projectService.createTeam({
+        const team = await teamService.createTeam({
           nom: `Équipe ${nom.trim()}`,
           description: `Équipe automatique pour le projet ${nom.trim()}`,
           id_projet: newProject.id_projet
@@ -248,7 +258,7 @@ const formatDateForAPI = (d: Date | null) => {
 
         // 3. Ajout des membres à l'équipe
         if (membres.length > 0) {
-          await Promise.all(membres.map(m => projectService.addMember(team.id_equipe, m.id)));
+          await Promise.all(membres.map(m => teamService.addMember(team.id_equipe, m.id)));
         }
 
         Alert.alert(t("common.success"), t("new_project.create_success") || "Projet créé avec succès");
@@ -385,7 +395,7 @@ const formatDateForAPI = (d: Date | null) => {
               />
 
               <ScrollView style={{ maxHeight: 300 }}>
-                {filteredUsers.map((c) => (
+                {filteredAdmins.map((c) => (
                   <TouchableOpacity
                     key={c.id}
                     style={[styles.listModalItem, chef?.id === c.id && styles.listModalItemActive]}
@@ -495,7 +505,7 @@ const formatDateForAPI = (d: Date | null) => {
               />
 
               <ScrollView style={{ maxHeight: 300 }}>
-                {filteredUsers.map((u) => {
+                {filteredMembers.map(u => {
                   const isSelected = membres.find(m => m.id === u.id);
                   return (
                     <TouchableOpacity

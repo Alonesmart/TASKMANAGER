@@ -1,4 +1,10 @@
 import asyncio
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT_DIR))
+
 from Backend.database import engine, SessionLocal
 from Backend import models
 from sqlalchemy import select
@@ -43,3 +49,4 @@ async def test_create_project():
 
 if __name__ == "__main__":
     asyncio.run(test_create_project())
+    asyncio.run(engine.dispose())

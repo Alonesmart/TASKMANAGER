@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import { authService } from "@/services/authService";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -15,15 +15,13 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { API_URL } from "@/constants/API_URL";
 
-const { width, height } = Dimensions.get("window");
+const { width } = Dimensions.get("window");
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
 
   const handleSend = async () => {
     if (!email.trim()) {
@@ -34,13 +32,10 @@ export default function ForgotPasswordScreen() {
     try {
       setLoading(true);
  
-      // ✅ Vrai appel API : POST /forgot-password
-      const response = await axios.post(`${API_URL}/forgot-password`, {
-        email: email.trim(),
-      });
+      const response = await authService.forgotPassword(email);
  
     // ✅ Le backend renvoie le reset_token en mode dev
-      const resetToken: string | undefined = response.data?.reset_token;
+      const resetToken = response?.reset_token ?? undefined;
  
       Alert.alert(
         "Email envoyé",

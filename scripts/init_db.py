@@ -22,6 +22,20 @@ async def ensure_sqlite_columns(conn):
         print("Adding missing users.tentatives column...", flush=True)
         await conn.execute(text("ALTER TABLE users ADD COLUMN tentatives INTEGER NOT NULL DEFAULT 0"))
 
+    await conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS tache_assignations (
+                id_tache INTEGER NOT NULL,
+                id_utilisateur INTEGER NOT NULL,
+                PRIMARY KEY (id_tache, id_utilisateur),
+                FOREIGN KEY(id_tache) REFERENCES taches(id_tache) ON DELETE CASCADE,
+                FOREIGN KEY(id_utilisateur) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+    )
+
 async def init_db(reset: bool = False):
     print("Opening database connection...", flush=True)
     async with engine.begin() as conn:

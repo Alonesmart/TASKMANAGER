@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,6 +67,7 @@ const EmptyState = ({ filterKey, t }: { filterKey: (typeof FILTER_KEYS)[number];
 // ─── Écran principal ──────────────────────────────────────────────────────────
 export default function RapportScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const [activeFilter, setActiveFilter] = useState<(typeof FILTER_KEYS)[number]>("all");
@@ -82,7 +84,7 @@ export default function RapportScreen() {
       }
     };
     fetchUser();
-  }, []);
+  }, [isFocused]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={["top", "bottom"]}>

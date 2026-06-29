@@ -1,38 +1,26 @@
+import { projectService } from "@/services/projectService";
+import type { Task } from "@/services/taskService";
+import { userService } from "@/services/userService";
+import { useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useIsFocused } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  ActivityIndicator,
+  View
 } from "react-native";
-import { useAppTheme } from "@/theme";
-import { projectService } from "@/services/projectService";
-import { userService } from "@/services/userService";
 import AddButton from "../../../components/AddButton";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
 type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminees";
-
-type Task = {
-  id_tache:    number;
-  titre:       string;
-  description: string | null;
-  priorite:    string;
-  statut:      string;
-  echeance:    string | null;
-  progression: number;
-  id_projet:   number;
-  projet?: {
-    titre: string;
-  };
-};
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 const FILTERS = [
@@ -52,11 +40,13 @@ const STATUT_NEXT: Record<string, string> = {
 const TaskCard = ({
   task,
   onChangeStatut,
+  onDetails,
   onEdit,
   onDelete,
 }: {
   task: Task;
   onChangeStatut: (id: number, s: string) => void;
+  onDetails: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
 }) => {
@@ -120,6 +110,11 @@ const TaskCard = ({
           </View>
         )}
       </View>
+
+      <TouchableOpacity style={cStyles.detailsBtn} onPress={() => onDetails(task)} activeOpacity={0.8}>
+        <Ionicons name="information-circle-outline" size={16} color="#8fb7df" />
+        <Text style={cStyles.detailsBtnText}>Détails</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -144,11 +139,25 @@ const cStyles = StyleSheet.create({
   metaRow:   { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 2 },
   metaItem:  { flexDirection: "row", alignItems: "center", gap: 4 },
   metaTxt:   { color: "#4a6b8a", fontSize: 11 },
+  detailsBtn: {
+    marginTop: 4,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#3d6b95",
+    backgroundColor: "#14304d",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  detailsBtnText: { color: "#8fb7df", fontSize: 13, fontWeight: "700" },
 });
 
 // ─── TASKS SCREEN ──────────────────────────────────────────────────────────────
 export default function Tasks() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -158,6 +167,8 @@ export default function Tasks() {
   const [tasks, setTasks]               = useState<Task[]>([]);
   const [loading, setLoading]           = useState(true);
   const [isAdmin, setIsAdmin]           = useState(false);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const filters = [
     { id: "toutes" as const, label: t("tasks.filter_all"), color: "#3b82f6" },
@@ -179,7 +190,7 @@ export default function Tasks() {
       fetchTasks();
     };
     init();
-  }, []);
+  }, [isFocused]);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -196,7 +207,8 @@ export default function Tasks() {
   const handleChangeStatut = async (id: number, statut: string) => {
     try {
       await projectService.updateTask(id, { statut });
-      setTasks(prev => prev.map(t => t.id_tache === id ? { ...t, statut } : t));
+      // Refresh la liste complète depuis l'API au lieu de mettre à jour localement
+      await fetchTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
       Alert.alert(t("common.error"), "Impossible de mettre à jour le statut");
@@ -227,8 +239,38 @@ export default function Tasks() {
         tachePriorite: task.priorite,
         tacheStatut: task.statut,
         tacheDateFin: task.echeance ?? "",
+        tacheAssignes: (task.assigned_users ?? []).map((user) => user.id).join(","),
       },
     });
+  };
+
+  const handleDetailsTask = (task: Task) => {
+    setSelectedTask(task);
+    setDetailsVisible(true);
+  };
+
+  const formatTaskDate = (dateStr?: string | null) => {
+    if (!dateStr) return "-";
+    const date = new Date(dateStr);
+    return Number.isNaN(date.getTime()) ? dateStr : date.toLocaleDateString();
+  };
+
+  const getPriorityMeta = (priority?: string) => {
+    const map: Record<string, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+      faible: { label: t("tasks.priority_low"), color: "#4caf50", icon: "leaf-outline" },
+      moyenne: { label: t("tasks.priority_medium"), color: "#f5a623", icon: "flag-outline" },
+      haute: { label: t("tasks.priority_high"), color: "#e53935", icon: "alert-circle-outline" },
+    };
+    return map[priority || ""] ?? map.moyenne;
+  };
+
+  const getStatusMeta = (status?: string) => {
+    const map: Record<string, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+      a_faire: { label: t("tasks.status_todo"), color: "#f59e0b", icon: "ellipse-outline" },
+      en_cours: { label: t("tasks.status_in_progress"), color: "#06b6d4", icon: "time-outline" },
+      terminees: { label: t("tasks.status_done"), color: "#ef4444", icon: "checkmark-circle-outline" },
+    };
+    return map[status || ""] ?? map.a_faire;
   };
 
   const handleDeleteTask = (task: Task) => {
@@ -263,9 +305,6 @@ export default function Tasks() {
           <Text style={styles.eyebrow}>{t("tasks.my_tasks")}</Text>
           <Text style={styles.headerTitle}>{t("tasks.title")}</Text>
         </View>
-        <TouchableOpacity onPress={fetchTasks} style={{ padding: 8 }}>
-           <Ionicons name="refresh" size={24} color={theme.accent} />
-        </TouchableOpacity>
         {tasks.length > 0 && (
           <View style={styles.headerBadge}>
             <Text style={styles.headerBadgeTxt}>{tasks.length}</Text>
@@ -349,6 +388,7 @@ export default function Tasks() {
               key={task.id_tache}
               task={task}
               onChangeStatut={handleChangeStatut}
+              onDetails={handleDetailsTask}
               onEdit={handleEditTask}
               onDelete={handleDeleteTask}
             />
@@ -367,6 +407,117 @@ export default function Tasks() {
           style={styles.floatingAddButton}
         />
       )}
+
+      <Modal
+        visible={detailsVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailsVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalEyebrow}>Détail de la tâche</Text>
+                <Text style={styles.modalTitle} numberOfLines={2}>
+                  {selectedTask?.titre || "Tâche"}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setDetailsVisible(false)}>
+                <Ionicons name="close" size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            {selectedTask && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+                <View style={styles.modalHero}>
+                  <View style={styles.modalHeroIcon}>
+                    <Ionicons name="clipboard-outline" size={26} color={theme.accent} />
+                  </View>
+                  <View style={styles.modalHeroContent}>
+                    <Text style={styles.modalHeroLabel}>Nom de la tâche</Text>
+                    <Text style={styles.modalHeroTitle} numberOfLines={2}>{selectedTask.titre}</Text>
+                    {!!selectedTask.description && (
+                      <Text style={styles.modalDescription}>{selectedTask.description}</Text>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.summaryRow}>
+                  {(() => {
+                    const status = getStatusMeta(selectedTask.statut);
+                    const priority = getPriorityMeta(selectedTask.priorite);
+                    return (
+                      <>
+                        <View style={[styles.summaryPill, { borderColor: status.color + "55", backgroundColor: status.color + "14" }]}>
+                          <Ionicons name={status.icon} size={16} color={status.color} />
+                          <Text style={[styles.summaryPillText, { color: status.color }]}>{status.label}</Text>
+                        </View>
+                        <View style={[styles.summaryPill, { borderColor: priority.color + "55", backgroundColor: priority.color + "14" }]}>
+                          <Ionicons name={priority.icon} size={16} color={priority.color} />
+                          <Text style={[styles.summaryPillText, { color: priority.color }]}>{priority.label}</Text>
+                        </View>
+                      </>
+                    );
+                  })()}
+                </View>
+
+                <View style={styles.detailGrid}>
+                  <View style={styles.detailBox}>
+                    <View style={styles.detailIcon}>
+                      <Ionicons name="folder-outline" size={16} color={theme.accent} />
+                    </View>
+                    <Text style={styles.detailLabel}>Projet</Text>
+                    <Text style={styles.detailValue} numberOfLines={2}>
+                      {selectedTask.projet?.titre || `Projet ID: ${selectedTask.id_projet}`}
+                    </Text>
+                  </View>
+                  <View style={styles.detailBox}>
+                    <View style={styles.detailIcon}>
+                      <Ionicons name="calendar-outline" size={16} color="#f5a623" />
+                    </View>
+                    <Text style={styles.detailLabel}>Échéance</Text>
+                    <Text style={styles.detailValue}>{formatTaskDate(selectedTask.echeance)}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.detailSection}>
+                  <View style={styles.sectionHeader}>
+                    <Ionicons name="people-outline" size={18} color={theme.accent} />
+                    <Text style={styles.sectionTitle}>Personnes assignées</Text>
+                  </View>
+                  {(selectedTask.assigned_users ?? []).length === 0 ? (
+                    <Text style={styles.detailHint}>Aucune personne assignée.</Text>
+                  ) : (
+                    (selectedTask.assigned_users ?? []).map((user) => (
+                      <View key={user.id} style={styles.personRow}>
+                        <View style={styles.avatar}>
+                          <Text style={styles.avatarText}>{user.nom?.charAt(0).toUpperCase() || "?"}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.personName}>{user.nom}</Text>
+                          {!!user.email && <Text style={styles.personMeta}>{user.email}</Text>}
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+
+                <View style={styles.detailSection}>
+                  <View style={styles.sectionHeader}>
+                    <Ionicons name="analytics-outline" size={18} color={theme.accent} />
+                    <Text style={styles.sectionTitle}>Progression</Text>
+                    <Text style={styles.progressText}>{selectedTask.progression}%</Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${selectedTask.progression}%`, backgroundColor: theme.accent }]} />
+                  </View>
+                </View>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -426,5 +577,132 @@ const createStyles = (theme: {
     borderWidth: 1,
     borderColor: theme.accent + "66",
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    maxHeight: "86%",
+    backgroundColor: theme.bg,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 18,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 12, paddingBottom: 12 },
+  modalEyebrow: { color: theme.textSecondary, fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  modalTitle: { color: theme.textPrimary, fontSize: 20, fontWeight: "800", marginTop: 2 },
+  modalCloseBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.cardBg,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  modalScrollContent: { paddingBottom: 8, gap: 12 },
+  modalHero: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: theme.cardBg,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  modalHeroIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.accent + "16",
+    borderWidth: 1,
+    borderColor: theme.accent + "35",
+  },
+  modalHeroContent: { flex: 1, minWidth: 0 },
+  modalHeroLabel: { color: theme.accent, fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  modalHeroTitle: { color: theme.textPrimary, fontSize: 18, lineHeight: 23, fontWeight: "800", marginTop: 3 },
+  modalDescription: { color: theme.textSecondary, fontSize: 13, lineHeight: 19, marginTop: 8 },
+  summaryRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  summaryPill: {
+    minHeight: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  summaryPillText: { fontSize: 13, fontWeight: "800" },
+  detailGrid: { flexDirection: "row", gap: 10 },
+  detailBox: {
+    flex: 1,
+    backgroundColor: theme.cardBg,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 14,
+    padding: 12,
+    gap: 7,
+  },
+  detailIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    backgroundColor: theme.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  detailLabel: { color: theme.textSecondary, fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  detailValue: { color: theme.textPrimary, fontSize: 14, fontWeight: "700" },
+  detailHint: { color: theme.textSecondary, fontSize: 13, lineHeight: 18 },
+  detailSection: {
+    backgroundColor: theme.cardBg,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 14,
+    padding: 13,
+    gap: 10,
+  },
+  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 7 },
+  sectionTitle: { flex: 1, color: theme.textPrimary, fontSize: 14, fontWeight: "800" },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: theme.bg,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.accent + "22",
+    borderWidth: 1,
+    borderColor: theme.accent + "55",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: { color: theme.accent, fontSize: 14, fontWeight: "800" },
+  personName: { color: theme.textPrimary, fontSize: 14, fontWeight: "700" },
+  personMeta: { color: theme.textSecondary, fontSize: 12, marginTop: 1 },
+  progressText: { color: theme.accent, fontSize: 13, fontWeight: "800" },
+  progressTrack: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.border,
+    overflow: "hidden",
+  },
+  progressFill: { height: "100%", borderRadius: 4 },
 
 });

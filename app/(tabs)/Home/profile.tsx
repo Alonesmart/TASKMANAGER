@@ -27,7 +27,7 @@ interface UserProfile {
   nom: string;
   email: string;
   role: string;
-  phone?: string;
+  phone?: string | null;
 }
 
 export default function ProfileScreen() {

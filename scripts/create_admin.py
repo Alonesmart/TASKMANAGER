@@ -10,20 +10,30 @@ from Backend import models
 from sqlalchemy import select
 
 async def create_admin(nom, email, password):
+    email = email.strip().lower()
     async with SessionLocal() as db:
         # Vérifier si l'utilisateur existe déjà
         result = await db.execute(select(models.User).where(models.User.email == email))
         existing = result.scalar_one_or_none()
         
         if existing:
-            print(f"L'utilisateur {email} existe déjà.")
-            if existing.role != "admin":
-                print(f"Changement du rôle de {email} en 'admin'...")
-                # Note: On doit gérer le polymorphisme. Administrateur a une table séparée.
-                # C'est plus simple de supprimer et recréer si c'est un test, 
-                # ou de créer une entrée dans la table 'administrateurs'.
-                # Pour cet exercice, nous allons créer un NOUVEL admin.
+            if existing.role == "admin":
+                existing.nom = nom
+                existing.motdepasse = pwd_context.hash(password)
+                existing.actif = True
+                existing.tentatives = 0
+                await db.commit()
+                print("Administrateur existant mis à jour avec succès.")
+                print(f"Email: {email}")
+                print(f"Mot de passe: {password}")
                 return
+
+            print(
+                f"Impossible de transformer {email} en admin automatiquement: "
+                "cet email existe déjà avec le rôle personnel."
+            )
+            print("Utilisez un autre email admin ou migrez ce compte manuellement.")
+            return
 
         hashed_pw = pwd_context.hash(password)
         new_admin = models.Administrateur(

@@ -27,9 +27,17 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    ./start_server.sh
    ```
 
-   The server will be available at `http://127.0.0.1:8000`.
-   On a physical phone with Expo Go, the app automatically uses the Expo dev
-   server host and port `8000` for the backend.
+   The server will be available on the computer at `http://127.0.0.1:8000`.
+   On Android emulator, the app uses `http://10.0.2.2:8000`.
+   On iOS simulator, web, and most Expo Go LAN sessions, the app automatically
+   uses the Expo dev server host with port `8000` for the backend.
+
+   If Expo Go is running through tunnel mode or the auto-detected host is not
+   reachable from the phone, set the backend URL explicitly before starting Expo:
+
+   ```bash
+   EXPO_PUBLIC_BACKEND_URL=http://YOUR_COMPUTER_LAN_IP:8000 npx expo start
+   ```
 
 3. Start the app
 

@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import axios from "axios";
+import { authService } from "@/services/authService";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -15,7 +15,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { API_URL } from "@/constants/API_URL";
 
 const { width } = Dimensions.get("window");
 
@@ -54,11 +53,7 @@ export default function ResetPasswordScreen() {
 
     try {
       setLoading(true);
-      await axios.post(`${API_URL}/reset-password`, {
-        token: token.trim(),
-        new_motdepasse: newPassword,
-        confirm_motdepasse: confirmPassword,
-      });
+      await authService.resetPassword(token, newPassword, confirmPassword);
 
       Alert.alert(
         "Succès",

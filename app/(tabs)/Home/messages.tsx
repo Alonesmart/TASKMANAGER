@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,6 +11,7 @@ import AddButton from "../../../components/AddButton";
 
 export default function Messages() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { theme } = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -25,7 +27,7 @@ export default function Messages() {
       }
     };
     fetchUser();
-  }, []);
+  }, [isFocused]);
 
   return (
     <View style={styles.container}>

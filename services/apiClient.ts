@@ -10,11 +10,18 @@ const apiClient = axios.create({
   },
 });
 
+// Debug interceptor
+apiClient.interceptors.request.use((config) => {
+  console.log(`[DEBUG] Requête vers : ${config.baseURL}${config.url}`);
+  return config;
+}, (error) => Promise.reject(error));
+
 // Intercepteur pour ajouter le token à chaque requête
 apiClient.interceptors.request.use(
   async (config) => {
     try {
       const token = await getStorageItem('access_token');
+      console.log("[DEBUG] Token récupéré depuis storage:", token ? "VALIDE" : "NULL/UNDEFINED");
       if (token) {
         // Utilisation de .set() pour plus de robustesse avec Axios 1.x
         if (config.headers && typeof config.headers.set === 'function') {
@@ -24,6 +31,8 @@ apiClient.interceptors.request.use(
           config.headers = config.headers || {};
           config.headers['Authorization'] = `Bearer ${token}`;
         }
+      } else {
+        console.warn("[DEBUG] Aucune Authorization header ajoutée car le token est manquant.");
       }
     } catch (error) {
       console.error('Error in request interceptor:', error);

@@ -1,7 +1,9 @@
-import { projectService } from '@/services/projectService';
+import { projectService, type Project } from '@/services/projectService';
+import { teamService } from '@/services/teamService';
 import { userService } from '@/services/userService';
 import { AppTheme, useAppTheme } from "@/theme";
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from "react-i18next";
@@ -39,26 +41,6 @@ const createColors = (theme: AppTheme) => ({
 type ProjectColors = ReturnType<typeof createColors>;
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
-type Project = {
-  id_projet: number;
-  titre: string;
-  description: string | null;
-  dateDebut: string;
-  dateFin: string;
-  statut: string;
-  priorite: string;
-  etat: string;
-  id_administrateur: number | null;
-  equipe?: {
-    id_equipe: number;
-    nom: string;
-    description: string | null;
-    id_projet: number;
-  } | null;
-  couleur?: string;
-  icone?: string;
-};
-
 type User = {
   id: number;
   nom: string;
@@ -207,6 +189,7 @@ const ProjectCard = ({
 // ─── PROJETS SCREEN ────────────────────────────────────────────────────────────
 export default function ProjetsScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const { t } = useTranslation();
   const { theme, isDark } = useAppTheme();
   const COLORS = React.useMemo(() => createColors(theme), [theme]);
@@ -248,7 +231,7 @@ export default function ProjetsScreen() {
       }
     };
     init();
-  }, []);
+  }, [isFocused]);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -311,7 +294,7 @@ export default function ProjetsScreen() {
       setSelectedProject(fullProject);
 
       if (fullProject?.equipe?.id_equipe) {
-        const members = await projectService.getTeamMembers(fullProject.equipe.id_equipe);
+        const members = await teamService.getTeamMembers(fullProject.equipe.id_equipe);
         setProjectMembers(members);
       }
     } catch (error: any) {
@@ -389,9 +372,6 @@ export default function ProjetsScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity style={styles.filterIconBtn} activeOpacity={0.7} onPress={fetchProjects}>
-          <Text style={styles.filterIconText}>🔄</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Filters */}
@@ -660,13 +640,6 @@ const createStyles = (COLORS: ProjectColors) => StyleSheet.create({
   },
   searchIcon:    { fontSize: 14, marginRight: 8 },
   searchInput:   { flex: 1, color: COLORS.text, fontSize: 14 },
-  filterIconBtn: {
-    width: 42, height: 42, borderRadius: 10,
-    backgroundColor: COLORS.card, justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  filterIconText: { fontSize: 20, color: COLORS.textMuted, fontWeight: '700' },
-
   filterRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 8 },
   filterChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,

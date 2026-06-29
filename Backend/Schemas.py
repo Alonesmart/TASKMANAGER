@@ -96,7 +96,7 @@ class TacheBase(BaseModel):
     id_projet: int
 
 class TacheCreate(TacheBase):
-    pass
+    assigned_user_ids: List[int] = Field(default_factory=list)
 
 class TacheUpdate(BaseModel):
     titre: Optional[str] = Field(None, min_length=1, max_length=150)
@@ -106,10 +106,15 @@ class TacheUpdate(BaseModel):
     echeance: Optional[date] = None
     progression: Optional[int] = Field(None, ge=0, le=100)
     etat: Optional[str] = Field(None, max_length=50)
+    assigned_user_ids: Optional[List[int]] = None
+
+class TacheAssignedUser(UserResponse):
+    pass
 
 class TacheOut(TacheBase):
     id_tache: int
     projet: Optional[ProjetOut] = None
+    assigned_users: List[TacheAssignedUser] = Field(default_factory=list)
     class Config:
         from_attributes = True
 

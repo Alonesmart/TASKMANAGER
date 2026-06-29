@@ -4,18 +4,18 @@ import { userService } from '@/services/userService';
 import { useAppTheme } from "@/theme";
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from "react-i18next";
 import {
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -76,8 +76,8 @@ export default function NouvelleTacheScreen() {
   const [dateDebut, setDateDebut]     = useState<Date | null>(parseDate(params.tacheDateDebut));
   const [dateFin, setDateFin]         = useState<Date | null>(parseDate(params.tacheDateFin));
   const [idProjet, setIdProjet]       = useState<number | null>(params.tacheProjet ? Number(params.tacheProjet) : null);
-  const [assignes, setAssignes]       = useState<string[]>(
-    params.tacheAssignes ? params.tacheAssignes.split(',').filter(Boolean) : []
+  const [assignes, setAssignes]       = useState<number[]>(
+    params.tacheAssignes ? params.tacheAssignes.split(',').map(Number).filter(Boolean) : []
   );
 
   const [projets, setProjets] = useState<{id_projet: number, titre: string}[]>([]);
@@ -85,34 +85,32 @@ export default function NouvelleTacheScreen() {
   const [saving, setSaving] = useState(false);
   const [membres, setMembres] = useState<{id: number, nom: string}[]>([]);
 
-  useEffect(() => {
-    fetchProjets();
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       const data = await userService.getUsers();
       setMembres(data);
     } catch (error) {
       console.error('Error fetching users for tasks:', error);
     }
-  };
+  }, []);
 
-  const fetchProjets = async () => {
+  const fetchProjets = useCallback(async () => {
     setLoadingProjets(true);
     try {
       const data = await projectService.getProjects();
       setProjets(data);
-      if (data.length > 0 && !idProjet) {
-        setIdProjet(data[0].id_projet);
-      }
+      setIdProjet(currentId => currentId ?? data[0]?.id_projet ?? null);
     } catch (error) {
       console.error('Error fetching projects for task:', error);
     } finally {
       setLoadingProjets(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchProjets();
+    fetchUsers();
+  }, [fetchProjets, fetchUsers]);
 
   const priorites: { key: 'faible' | 'moyenne' | 'haute'; label: string; bg: string }[] = [
     { key: 'faible',  label: t("tasks.priority_low"),  bg: COLORS.success },
@@ -120,11 +118,8 @@ export default function NouvelleTacheScreen() {
     { key: 'haute',   label: t("tasks.priority_high"),   bg: COLORS.danger  },
   ];
 
-  const toggleAssigne = (name: string) =>
-    setAssignes(prev => prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]);
-
-  const fmtDate = (d: Date | null) =>
-    d ? `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}` : '';
+  const toggleAssigne = (id: number) =>
+    setAssignes(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
   const formatDateForAPI = (d: Date | null) => {
     if (!d) return null;
@@ -138,20 +133,29 @@ export default function NouvelleTacheScreen() {
 
     setSaving(true);
     try {
-      const currentStatut = isEditMode ? (params.tacheStatut ?? 'a_faire') : 'a_faire';
-      const taskData = {
+      const commonData = {
         titre: titre.trim(),
-        description: description.trim(),
+        description: description.trim() || null,
         priorite: priorite,
-        statut: currentStatut,
         echeance: formatDateForAPI(dateFin),
-        id_projet: idProjet,
-        progression: isEditMode ? 0 : 0, // Placeholder
+        assigned_user_ids: assignes,
       };
 
       if (isEditMode && params.tacheId) {
-        await projectService.updateTask(Number(params.tacheId), taskData);
+        // Mode édition : envoyer seulement les champs modifiables (exclure id_projet)
+        const updateData = {
+          ...commonData,
+          statut: params.tacheStatut ?? 'a_faire',
+        };
+        await projectService.updateTask(Number(params.tacheId), updateData);
       } else {
+        // Mode création : envoyer tous les champs requis
+        const taskData = {
+          ...commonData,
+          statut: 'a_faire',
+          id_projet: idProjet,
+          progression: 0,
+        };
         await projectService.createTask(taskData);
       }
 
@@ -237,11 +241,11 @@ export default function NouvelleTacheScreen() {
           {membres.map((user) => (
             <TouchableOpacity
               key={user.id}
-              style={[styles.chip, assignes.includes(user.nom) && styles.chipActive]}
-              onPress={() => toggleAssigne(user.nom)}
+              style={[styles.chip, assignes.includes(user.id) && styles.chipActive]}
+              onPress={() => toggleAssigne(user.id)}
               activeOpacity={0.8}
             >
-              <Text style={[styles.chipTxt, assignes.includes(user.nom) && styles.chipTxtActive]}>{user.nom}</Text>
+              <Text style={[styles.chipTxt, assignes.includes(user.id) && styles.chipTxtActive]}>{user.nom}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>

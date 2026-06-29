@@ -1,10 +1,38 @@
 import apiClient from './apiClient';
+import { taskService, type TaskPayload, type TaskUpdatePayload } from './taskService';
+import { teamService, type Team } from './teamService';
+
+export interface Project {
+  id_projet: number;
+  titre: string;
+  description?: string | null;
+  dateDebut: string;
+  dateFin: string;
+  priorite: string;
+  statut: string;
+  etat: string;
+  id_administrateur?: number | null;
+  equipe?: Team | null;
+  couleur?: string;
+  icone?: string;
+}
+
+export interface ProjectPayload {
+  titre: string;
+  description?: string | null;
+  dateDebut: string;
+  dateFin: string;
+  statut: string;
+  priorite: string;
+  etat?: string;
+  id_administrateur?: number;
+}
 
 export const projectService = {
   /**
    * Récupère un projet spécifique par son ID
    */
-  async getProjectById(idProjet: number) {
+  async getProjectById(idProjet: number): Promise<Project> {
     const response = await apiClient.get(`/api/v1/core/projets/${idProjet}`);
     return response.data;
   },
@@ -12,8 +40,8 @@ export const projectService = {
   /**
    * Récupère la liste des projets de l'utilisateur
    */
-  async getProjects() {
-    const response = await apiClient.get('/api/v1/core/projets');
+  async getProjects(): Promise<Project[]> {
+    const response = await apiClient.get('/api/v1/core/projets/');
     return response.data;
   },
 
@@ -21,30 +49,21 @@ export const projectService = {
    * Récupère la liste des tâches de l'utilisateur
    */
   async getTasks() {
-    const response = await apiClient.get('/api/v1/core/taches');
-    return response.data;
+    return taskService.getTasks();
   },
 
   /**
    * Crée un nouveau projet
    */
-  async createProject(projectData: {
-    titre: string;
-    description: string;
-    dateDebut: string;
-    dateFin: string;
-    statut: string;
-    priorite: string;
-    id_administrateur?: number;
-  }) {
-    const response = await apiClient.post('/api/v1/core/projets', projectData);
+  async createProject(projectData: ProjectPayload): Promise<Project> {
+    const response = await apiClient.post('/api/v1/core/projets/', projectData);
     return response.data;
   },
 
   /**
    * Met à jour un projet existant
    */
-  async updateProject(idProjet: number, projectData: any) {
+  async updateProject(idProjet: number, projectData: ProjectPayload): Promise<Project> {
     const response = await apiClient.put(`/api/v1/core/projets/${idProjet}`, projectData);
     return response.data;
   },
@@ -52,9 +71,8 @@ export const projectService = {
   /**
    * Supprime un projet
    */
-  async deleteProject(idProjet: number) {
-    const response = await apiClient.delete(`/api/v1/core/projets/${idProjet}`);
-    return response.data;
+  async deleteProject(idProjet: number): Promise<void> {
+    await apiClient.delete(`/api/v1/core/projets/${idProjet}`);
   },
 
   /**
@@ -65,56 +83,49 @@ export const projectService = {
     description: string;
     id_projet: number;
   }) {
-    const response = await apiClient.post('/api/v1/core/equipes', teamData);
-    return response.data;
+    return teamService.createTeam(teamData);
   },
 
   /**
    * Ajoute une tâche à un projet existant
    */
-  async createTask(taskData: any) {
-    const response = await apiClient.post('/api/v1/core/taches', taskData);
-    return response.data;
+  async createTask(taskData: TaskPayload) {
+    return taskService.createTask(taskData);
   },
 
   /**
    * Met à jour une tâche existante
    */
-  async updateTask(idTache: number, updateData: any) {
-    const response = await apiClient.put(`/api/v1/core/taches/${idTache}`, updateData);
-    return response.data;
+  async updateTask(idTache: number, updateData: TaskUpdatePayload) {
+    return taskService.updateTask(idTache, updateData);
   },
 
   /**
    * Supprime une tâche
    */
   async deleteTask(idTache: number) {
-    const response = await apiClient.delete(`/api/v1/core/taches/${idTache}`);
-    return response.data;
+    return taskService.deleteTask(idTache);
   },
 
   /**
    * Récupère les membres d'une équipe pour un projet donné
    */
   async getTeamMembers(idEquipe: number) {
-    const response = await apiClient.get(`/api/v1/core/equipes/${idEquipe}/membres`);
-    return response.data;
+    return teamService.getTeamMembers(idEquipe);
   },
 
   /**
    * Ajoute un membre à une équipe
    */
   async addMember(idEquipe: number, idUtilisateur: number) {
-    const response = await apiClient.post(`/api/v1/core/equipes/${idEquipe}/membres`, { id_equipe: idEquipe, id_utilisateur: idUtilisateur });
-    return response.data;
+    return teamService.addMember(idEquipe, idUtilisateur);
   },
 
   /**
    * Synchronise les membres d'une équipe
    */
   async syncTeamMembers(idEquipe: number, userIds: number[]) {
-    const response = await apiClient.put(`/api/v1/core/equipes/${idEquipe}/membres`, userIds);
-    return response.data;
+    return teamService.syncTeamMembers(idEquipe, userIds);
   },
 
   /**
