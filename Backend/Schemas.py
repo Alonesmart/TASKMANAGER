@@ -167,12 +167,53 @@ class GlobalDashboardOut(BaseModel):
         from_attributes = True
 
 
+# --- Rapport Schemas ---
+class RapportBase(BaseModel):
+    titre: str = Field(..., min_length=1, max_length=150)
+    contenu: str = Field(..., min_length=1)
+    type: str = Field(..., max_length=50)
+    id_projet: int
+
+class RapportCreate(RapportBase):
+    pass
+
+class RapportOut(RapportBase):
+    id_rapport: int
+    statut: str
+    date_generation: datetime
+    id_personnel: int
+    class Config:
+        from_attributes = True
+
 # --- Message Schemas ---
+class ConversationBase(BaseModel):
+    nom: Optional[str] = Field(None, max_length=100)
+    type: str = Field("direct", max_length=50)  # 'direct' or 'groupe'
+
+class ConversationCreate(ConversationBase):
+    participant_ids: List[int]
+
+class ConversationOut(ConversationBase):
+    id_conversation: int
+    date_creation: datetime
+    class Config:
+        from_attributes = True
+
+class ConversationParticipantCreate(BaseModel):
+    id_utilisateur: int
+
+class ConversationParticipantOut(BaseModel):
+    id_conversation: int
+    id_utilisateur: int
+    class Config:
+        from_attributes = True
+
 class MessageBase(BaseModel):
     contenu: str
     type_conversation: str
-    id_expediteur: int
+    id_expediteur: Optional[int] = None
     id_assistant: Optional[int] = None
+    id_conversation: Optional[int] = None
 
 class MessageCreate(MessageBase):
     pass
@@ -200,3 +241,126 @@ class NotificationRead(NotificationBase):
 
 class NotificationCount(BaseModel):
     count: int
+
+# --- Document Schemas ---
+class DocumentBase(BaseModel):
+    nom_original: str = Field(..., max_length=255)
+    nom_stocke: str = Field(..., max_length=255)
+    type_mime: str = Field(..., max_length=100)
+    taille: int = Field(..., ge=0)
+    chemin: str
+    id_projet: Optional[int] = None
+    id_tache: Optional[int] = None
+
+class DocumentCreate(DocumentBase):
+    pass
+
+class DocumentOut(DocumentBase):
+    id: int
+    id_uploader: int
+    date_upload: datetime
+    class Config:
+        from_attributes = True
+
+# --- ProjetMembreRole Schemas ---
+class ProjetMembreRoleBase(BaseModel):
+    id_projet: int
+    id_utilisateur: int
+    role: str = Field(..., max_length=50)
+
+class ProjetMembreRoleCreate(ProjetMembreRoleBase):
+    pass
+
+class ProjetMembreRoleOut(ProjetMembreRoleBase):
+    class Config:
+        from_attributes = True
+
+# --- Invitation Schemas ---
+class InvitationBase(BaseModel):
+    email_invite: str
+    id_projet: int
+    role_propose: str = Field(..., max_length=50)
+
+class InvitationCreate(InvitationBase):
+    pass
+
+class InvitationOut(InvitationBase):
+    id: int
+    token: str
+    expires_at: datetime
+    statut: str
+    class Config:
+        from_attributes = True
+
+
+# --- Reunion Schemas ---
+class ReunionParticipantOut(BaseModel):
+    id_utilisateur: int
+    nom: str
+    email: str
+    statut: str
+    class Config:
+        from_attributes = True
+
+class ReunionBase(BaseModel):
+    titre: str
+    date: datetime
+    lien_virtuel: Optional[str] = None
+    ordre_jour: Optional[str] = None
+    compte_rendu: Optional[str] = None
+    id_projet: int
+
+class ReunionCreate(BaseModel):
+    titre: str
+    date: datetime
+    lien_virtuel: Optional[str] = None
+    ordre_jour: Optional[str] = None
+    id_projet: int
+    invited_user_ids: List[int] = []
+
+class ReunionOut(ReunionBase):
+    id_reunion: int
+    invitations: List[ReunionParticipantOut] = []
+    class Config:
+        from_attributes = True
+
+class ReunionResponseUpdate(BaseModel):
+    statut: str = Field(..., pattern="^(confirme|decline)$")
+
+
+# --- IA Schemas ---
+class IARedigerRequest(BaseModel):
+    titre: str
+    type: str = "tache" # "tache" or "projet"
+
+class IARedigerResponse(BaseModel):
+    description: str
+
+class IASuggererPrioriteRequest(BaseModel):
+    titre: str
+    description: Optional[str] = None
+    date_echeance: Optional[datetime] = None
+
+class IASuggererPrioriteResponse(BaseModel):
+    priorite: str
+
+class IARepartirRequest(BaseModel):
+    id_projet: int
+    tache_ids: List[int]
+
+class IARepartirItem(BaseModel):
+    id_tache: int
+    id_utilisateur: int
+
+class IARepartirResponse(BaseModel):
+    repartition: List[IARepartirItem]
+
+class IARisqueItem(BaseModel):
+    id_tache: int
+    titre: str
+    statut: str
+    risque: str
+    raison: str
+
+class IARisqueResponse(BaseModel):
+    risques: List[IARisqueItem]

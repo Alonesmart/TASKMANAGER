@@ -26,6 +26,8 @@ class User(Base):
     reunions: Mapped[List["Reunion"]] = relationship("Reunion", secondary="participation_reunion", back_populates="participants")
     equipes_creees: Mapped[List["Equipe"]] = relationship("Equipe", back_populates="createur")
     taches_assignees: Mapped[List["TacheAssignation"]] = relationship("TacheAssignation", back_populates="utilisateur")
+    projets_roles: Mapped[List["ProjetMembreRole"]] = relationship("ProjetMembreRole", back_populates="utilisateur", cascade="all, delete-orphan")
+    reunion_invitations: Mapped[List["ParticipationReunion"]] = relationship("ParticipationReunion", back_populates="utilisateur", cascade="all, delete-orphan")
 
     __mapper_args__ = {
         "polymorphic_on": role,
@@ -77,6 +79,8 @@ class Projet(Base):
     documents: Mapped[List["Document"]] = relationship("Document", back_populates="projet", cascade="all, delete-orphan")
     rapports: Mapped[List["Rapport"]] = relationship("Rapport", back_populates="projet", cascade="all, delete-orphan")
     reunions: Mapped[List["Reunion"]] = relationship("Reunion", back_populates="projet", cascade="all, delete-orphan")
+    membres_roles: Mapped[List["ProjetMembreRole"]] = relationship("ProjetMembreRole", back_populates="projet", cascade="all, delete-orphan")
+    invitations: Mapped[List["Invitation"]] = relationship("Invitation", back_populates="projet", cascade="all, delete-orphan")
 
 
 class Tache(Base):
@@ -90,12 +94,31 @@ class Tache(Base):
     echeance: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     progression: Mapped[int] = mapped_column(Integer, default=0)
     etat: Mapped[str] = mapped_column(String(50), default="active")
-    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"))
+    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), index=True)
 
     projet: Mapped["Projet"] = relationship("Projet", back_populates="taches", lazy="selectin")
     commentaires: Mapped[List["Commentaire"]] = relationship("Commentaire", back_populates="tache", cascade="all, delete-orphan")
     notifications_declenchees: Mapped[List["Notification"]] = relationship("Notification", back_populates="tache_origine")
     assignations: Mapped[List["TacheAssignation"]] = relationship("TacheAssignation", back_populates="tache", cascade="all, delete-orphan", lazy="selectin")
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="tache", cascade="all, delete-orphan")
+
+    dependencies: Mapped[List["Tache"]] = relationship(
+        "Tache",
+        secondary="tache_dependances",
+        primaryjoin="Tache.id_tache == TacheDependance.id_tache",
+        secondaryjoin="Tache.id_tache == TacheDependance.id_dependance",
+        back_populates="dependents",
+        lazy="selectin"
+    )
+
+    dependents: Mapped[List["Tache"]] = relationship(
+        "Tache",
+        secondary="tache_dependances",
+        primaryjoin="Tache.id_tache == TacheDependance.id_dependance",
+        secondaryjoin="Tache.id_tache == TacheDependance.id_tache",
+        back_populates="dependencies",
+        lazy="selectin"
+    )
 
 
 class TacheAssignation(Base):
@@ -105,6 +128,12 @@ class TacheAssignation(Base):
 
     tache: Mapped["Tache"] = relationship("Tache", back_populates="assignations")
     utilisateur: Mapped["User"] = relationship("User", back_populates="taches_assignees", lazy="selectin")
+
+
+class TacheDependance(Base):
+    __tablename__ = "tache_dependances"
+    id_tache: Mapped[int] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="CASCADE"), primary_key=True)
+    id_dependance: Mapped[int] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="CASCADE"), primary_key=True)
 
 
 class Equipe(Base):
@@ -129,29 +158,61 @@ class Appartient_Equipe(Base):
     equipe: Mapped["Equipe"] = relationship("Equipe", back_populates="membres")
 
 
+class ProjetMembreRole(Base):
+    __tablename__ = "projet_membre_roles"
+    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), primary_key=True)
+    id_utilisateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(50))  # "chef_projet", "collaborateur", "invite_externe"
+
+    projet: Mapped["Projet"] = relationship("Projet", back_populates="membres_roles")
+    utilisateur: Mapped["User"] = relationship("User", back_populates="projets_roles")
+
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    email_invite: Mapped[str] = mapped_column(String(255))
+    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"))
+    role_propose: Mapped[str] = mapped_column(String(50))  # "chef_projet", "collaborateur", "invite_externe"
+    token: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    statut: Mapped[str] = mapped_column(String(50), default="pending")  # "pending", "acceptee", "refusee"
+
+    projet: Mapped["Projet"] = relationship("Projet", back_populates="invitations")
+
+
 # ==============================================================================
 # 3. DOCUMENTS, RAPPORTS ET COMMENTAIRES
 # ==============================================================================
 
 class Document(Base):
     __tablename__ = "documents"
-    id_document: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    nom: Mapped[str] = mapped_column(String(150))
-    format: Mapped[str] = mapped_column(String(10))
-    uri: Mapped[str] = mapped_column(Text)
-    date_ajout: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    nom_original: Mapped[str] = mapped_column(String(255))
+    nom_stocke: Mapped[str] = mapped_column(String(255))
+    type_mime: Mapped[str] = mapped_column(String(100))
+    taille: Mapped[int] = mapped_column(Integer)
+    chemin: Mapped[str] = mapped_column(Text)
+    id_projet: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), nullable=True)
+    id_tache: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="CASCADE"), nullable=True)
+    id_uploader: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    date_upload: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    projet: Mapped["Projet"] = relationship("Projet", back_populates="documents")
+    projet: Mapped[Optional["Projet"]] = relationship("Projet", back_populates="documents")
+    tache: Mapped[Optional["Tache"]] = relationship("Tache", back_populates="documents")
+    uploader: Mapped["User"] = relationship("User")
 
 
 class Rapport(Base):
     __tablename__ = "rapports"
     id_rapport: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    titre: Mapped[str] = mapped_column(String(150))
+    contenu: Mapped[str] = mapped_column(Text)
     type: Mapped[str] = mapped_column(String(50))
-    periode: Mapped[str] = mapped_column(String(100))
+    periode: Mapped[str] = mapped_column(String(100), default="non_specifie")
+    statut: Mapped[str] = mapped_column(String(50), default="pending")
     date_generation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"))
+    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), index=True)
     id_personnel: Mapped[int] = mapped_column(Integer, ForeignKey("personnels.id"))
 
     projet: Mapped["Projet"] = relationship("Projet", back_populates="rapports")
@@ -174,6 +235,26 @@ class Commentaire(Base):
 # 4. COMMUNICATION & ASSISTANT IA
 # ==============================================================================
 
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id_conversation: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    nom: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    type: Mapped[str] = mapped_column(String(50), default="direct")  # 'direct' or 'groupe'
+    date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    participants: Mapped[List["ConversationParticipant"]] = relationship("ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
+    messages: Mapped[List["Message"]] = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+
+
+class ConversationParticipant(Base):
+    __tablename__ = "conversation_participants"
+    id_conversation: Mapped[int] = mapped_column(Integer, ForeignKey("conversations.id_conversation", ondelete="CASCADE"), primary_key=True)
+    id_utilisateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="participants")
+    utilisateur: Mapped["User"] = relationship("User")
+
+
 class AssistantIA(Base):
     __tablename__ = "assistants_ia"
     id_ia: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -190,10 +271,12 @@ class Message(Base):
     date_envoi: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     lu: Mapped[bool] = mapped_column(Boolean, default=False)
     id_expediteur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
-    id_ia: Mapped[int] = mapped_column(Integer, ForeignKey("assistants_ia.id_ia"))
+    id_ia: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("assistants_ia.id_ia"), nullable=True)
+    id_conversation: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("conversations.id_conversation"), nullable=True)
 
     expediteur: Mapped["User"] = relationship("User", foreign_keys=[id_expediteur], back_populates="messages_envoyes")
-    assistant: Mapped["AssistantIA"] = relationship("AssistantIA", back_populates="messages_assistes")
+    assistant: Mapped[Optional["AssistantIA"]] = relationship("AssistantIA", back_populates="messages_assistes")
+    conversation: Mapped[Optional["Conversation"]] = relationship("Conversation", back_populates="messages")
 
 
 class Notification(Base):
@@ -217,6 +300,10 @@ class ParticipationReunion(Base):
     __tablename__ = "participation_reunion"
     id_reunion: Mapped[int] = mapped_column(Integer, ForeignKey("reunions.id_reunion", ondelete="CASCADE"), primary_key=True)
     id_utilisateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    statut: Mapped[str] = mapped_column(String(50), default="invite")
+
+    reunion: Mapped["Reunion"] = relationship("Reunion", back_populates="invitations")
+    utilisateur: Mapped["User"] = relationship("User", back_populates="reunion_invitations")
 
 
 class Reunion(Base):
@@ -227,10 +314,11 @@ class Reunion(Base):
     lien_virtuel: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ordre_jour: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     compte_rendu: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"))
+    id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), index=True)
 
     projet: Mapped["Projet"] = relationship("Projet", back_populates="reunions")
     participants: Mapped[List["User"]] = relationship("User", secondary="participation_reunion", back_populates="reunions")
+    invitations: Mapped[List["ParticipationReunion"]] = relationship("ParticipationReunion", back_populates="reunion", cascade="all, delete-orphan", lazy="selectin")
 
 
 # ==============================================================================

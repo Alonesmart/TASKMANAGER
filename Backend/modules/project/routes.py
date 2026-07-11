@@ -6,7 +6,7 @@ from typing import List
 
 from ...database import get_db
 from ... import models, Schemas
-from ...modules.auth import get_current_user
+from ...modules.auth import get_current_user, RequireProjectRole
 
 router = APIRouter(prefix="/api/v1/core/projets", tags=["Projets"])
 
@@ -21,7 +21,18 @@ async def get_admin_or_400(db: AsyncSession, user_id: int) -> models.User:
     return user
 
 async def user_can_access_project(db: AsyncSession, project: models.Projet, user: models.User) -> bool:
-    if project.id_administrateur == user.id:
+    if user.role == "admin" or project.id_administrateur == user.id:
+        return True
+
+    # Check project roles table
+    role_result = await db.execute(
+        select(models.ProjetMembreRole)
+        .where(
+            models.ProjetMembreRole.id_projet == project.id_projet,
+            models.ProjetMembreRole.id_utilisateur == user.id
+        )
+    )
+    if role_result.scalar_one_or_none() is not None:
         return True
 
     team_result = await db.execute(
@@ -54,10 +65,15 @@ async def list_accessible_projects(
             models.Appartient_Equipe,
             models.Appartient_Equipe.id_equipe == models.Equipe.id_equipe,
         )
+        .outerjoin(
+            models.ProjetMembreRole,
+            models.ProjetMembreRole.id_projet == models.Projet.id_projet
+        )
         .where(
             or_(
                 models.Projet.id_administrateur == current_user.id,
-                models.Appartient_Equipe.id_personnel == current_user.id
+                models.Appartient_Equipe.id_personnel == current_user.id,
+                models.ProjetMembreRole.id_utilisateur == current_user.id
             )
         )
         .distinct()
@@ -101,7 +117,7 @@ async def create_project(
 router.add_api_route("", create_project, methods=["POST"], response_model=Schemas.ProjetOut, status_code=status.HTTP_201_CREATED)
 router.add_api_route("/", create_project, methods=["POST"], response_model=Schemas.ProjetOut, status_code=status.HTTP_201_CREATED)
 
-@router.get("/{id_projet}", response_model=Schemas.ProjetOut)
+@router.get("/{id_projet}", response_model=Schemas.ProjetOut, dependencies=[Depends(RequireProjectRole(["chef_projet", "collaborateur", "invite_externe"]))])
 async def get_project(
     id_projet: int,
     db: AsyncSession = Depends(get_db),
@@ -118,11 +134,10 @@ async def get_project(
     if not project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
         
-    if not await user_can_access_project(db, project, current_user):
-        raise HTTPException(status_code=403, detail="Vous n'avez pas accès à ce projet")
     return project
 
-@router.put("/{id_projet}", response_model=Schemas.ProjetOut)
+
+@router.put("/{id_projet}", response_model=Schemas.ProjetOut, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
 async def update_project(
     id_projet: int,
     project_update: Schemas.ProjetBase,
@@ -130,17 +145,11 @@ async def update_project(
     current_user: models.User = Depends(get_current_user)
 ):
     """Met à jour un projet existant."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent modifier un projet")
-
     result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
     project = result.scalar_one_or_none()
     
     if not project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
-
-    if project.id_administrateur != current_user.id:
-        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de modifier ce projet")
 
     update_data = project_update.model_dump(exclude_unset=True)
     if "id_administrateur" in update_data and update_data["id_administrateur"] is not None:
@@ -154,7 +163,8 @@ async def update_project(
 
     return project
 
-@router.delete("/{id_projet}", status_code=status.HTTP_204_NO_CONTENT)
+
+@router.delete("/{id_projet}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
 async def delete_project(
     id_projet: int,
     db: AsyncSession = Depends(get_db),
@@ -166,12 +176,6 @@ async def delete_project(
     if not db_project:
         raise HTTPException(status_code=404, detail="Projet non trouvé")
     
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seuls les administrateurs peuvent supprimer un projet")
-
-    if db_project.id_administrateur != current_user.id:
-        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de supprimer ce projet")
-
     await db.delete(db_project)
     await db.commit()
     return {"message": "Projet supprimé avec succès"}

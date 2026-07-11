@@ -1,16 +1,18 @@
 import os
 import secrets
 from datetime import datetime, timedelta
+from typing import List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from ... import models
-from ...Schemas import ForgotPasswordRequest, ResetPasswordRequest, Token, TokenData, UserLogin, UserRegister
+from ...Schemas import Token, TokenData, UserLogin, UserRegister, ForgotPasswordRequest, ResetPasswordRequest
 from ...database import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     ALGORITHM,
@@ -23,7 +25,7 @@ from ...database import (
 router = APIRouter(tags=["Authentification"])
 security = HTTPBearer()
 
-TOKEN_EXPIRE_MINUTES = 30
+TOKEN_EXPIRE_MINUTES = 10
 
 mail_conf = ConnectionConfig(
     MAIL_USERNAME=os.getenv("MAIL_USERNAME", "votre_email@gmail.com"),
@@ -74,6 +76,71 @@ async def get_current_user(
     if not user.actif:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Compte désactivé")
     return user
+
+
+class RequireProjectRole:
+    def __init__(self, allowed_roles: List[str]):
+        self.allowed_roles = allowed_roles
+
+    async def __call__(
+        self,
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        current_user: models.User = Depends(get_current_user)
+    ):
+        path_params = request.path_params
+        id_projet = None
+
+        if "id_projet" in path_params:
+            id_projet = int(path_params["id_projet"])
+        elif "id_tache" in path_params:
+            id_tache = int(path_params["id_tache"])
+            task_res = await db.execute(select(models.Tache).where(models.Tache.id_tache == id_tache))
+            task = task_res.scalar_one_or_none()
+            if not task:
+                raise HTTPException(status_code=404, detail="Tâche non trouvée")
+            id_projet = task.id_projet
+        elif "id_equipe" in path_params:
+            id_equipe = int(path_params["id_equipe"])
+            team_res = await db.execute(select(models.Equipe).where(models.Equipe.id_equipe == id_equipe))
+            team = team_res.scalar_one_or_none()
+            if not team:
+                raise HTTPException(status_code=404, detail="Équipe non trouvée")
+            id_projet = team.id_projet
+        elif "id_rapport" in path_params:
+            id_rapport = int(path_params["id_rapport"])
+            rep_res = await db.execute(select(models.Rapport).where(models.Rapport.id_rapport == id_rapport))
+            rep = rep_res.scalar_one_or_none()
+            if not rep:
+                raise HTTPException(status_code=404, detail="Rapport non trouvé")
+            id_projet = rep.id_projet
+        elif "id" in path_params:
+            resource_id = int(path_params["id"])
+            path = request.url.path
+            if "documents" in path:
+                doc_res = await db.execute(select(models.Document).where(models.Document.id == resource_id))
+                doc = doc_res.scalar_one_or_none()
+                if not doc:
+                    raise HTTPException(status_code=404, detail="Document non trouvé")
+                id_projet = doc.id_projet
+            elif "invitations" in path:
+                inv_res = await db.execute(select(models.Invitation).where(models.Invitation.id == resource_id))
+                inv = inv_res.scalar_one_or_none()
+                if not inv:
+                    raise HTTPException(status_code=404, detail="Invitation non trouvée")
+                id_projet = inv.id_projet
+            else:
+                id_projet = resource_id
+
+        if id_projet is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Impossible de déterminer le projet lié à cette action."
+            )
+
+        from ..invitations.routes import verify_project_role
+        await verify_project_role(db, id_projet, current_user, self.allowed_roles)
+        return id_projet
 
 
 @router.post("/login", response_model=Token)
@@ -210,7 +277,7 @@ async def reset_password(request: ResetPasswordRequest, db: AsyncSession = Depen
         select(models.ResetToken).filter(
             models.ResetToken.token == request.token,
             models.ResetToken.used == False,
-        )
+        ).options(selectinload(models.ResetToken.user))
     )
     token_entry = result.scalar_one_or_none()
     if not token_entry:

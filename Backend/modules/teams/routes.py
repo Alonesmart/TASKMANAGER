@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ... import Schemas, models
 from ...database import get_db
-from ...modules.auth import get_current_user
+from ...modules.auth import get_current_user, RequireProjectRole
 
 router = APIRouter(prefix="/api/v1/core/equipes", tags=["Équipes"])
 
@@ -27,13 +27,24 @@ async def get_project_or_404(db: AsyncSession, id_projet: int) -> models.Projet:
     return project
 
 
-async def ensure_project_admin(project: models.Projet, user: models.User):
-    if project.id_administrateur != user.id:
-        raise HTTPException(status_code=403, detail="Vous n'avez pas la permission de gérer ce projet")
+async def ensure_project_admin(db: AsyncSession, project: models.Projet, user: models.User):
+    from ..invitations.routes import verify_project_role
+    await verify_project_role(db, project.id_projet, user, ["chef_projet"])
 
 
 async def user_can_access_project(db: AsyncSession, project: models.Projet, user: models.User) -> bool:
-    if project.id_administrateur == user.id:
+    if user.role == "admin" or project.id_administrateur == user.id:
+        return True
+
+    # Check project roles table
+    role_result = await db.execute(
+        select(models.ProjetMembreRole)
+        .where(
+            models.ProjetMembreRole.id_projet == project.id_projet,
+            models.ProjetMembreRole.id_utilisateur == user.id
+        )
+    )
+    if role_result.scalar_one_or_none() is not None:
         return True
 
     team_result = await db.execute(select(models.Equipe).filter(models.Equipe.id_projet == project.id_projet))
@@ -61,7 +72,7 @@ async def create_team(
     current_user: models.User = Depends(get_current_user),
 ):
     project = await get_project_or_404(db, team.id_projet)
-    await ensure_project_admin(project, current_user)
+    await ensure_project_admin(db, project, current_user)
 
     if project.equipe:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Une équipe existe déjà pour ce projet")
@@ -91,7 +102,7 @@ router.add_api_route("", create_team, methods=["POST"], response_model=Schemas.E
 router.add_api_route("/", create_team, methods=["POST"], response_model=Schemas.EquipeOut, status_code=status.HTTP_201_CREATED)
 
 
-@router.post("/{id_equipe}/membres", response_model=Schemas.AppartientEquipeOut, status_code=status.HTTP_201_CREATED)
+@router.post("/{id_equipe}/membres", response_model=Schemas.AppartientEquipeOut, status_code=status.HTTP_201_CREATED, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
 async def add_team_member(
     id_equipe: int,
     member_data: Schemas.AppartientEquipeCreate,
@@ -103,10 +114,6 @@ async def add_team_member(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="L'ID de l'équipe dans l'URL ne correspond pas à celui du corps de la requête.",
         )
-
-    team = await get_team_or_404(db, id_equipe)
-    project = await get_project_or_404(db, team.id_projet)
-    await ensure_project_admin(project, current_user)
 
     result = await db.execute(select(models.User).filter(models.User.id == member_data.id_utilisateur))
     user = result.scalar_one_or_none()
@@ -129,17 +136,13 @@ async def add_team_member(
     return {"id_equipe": id_equipe, "id_utilisateur": member_data.id_utilisateur}
 
 
-@router.delete("/{id_equipe}/membres/{id_utilisateur}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id_equipe}/membres/{id_utilisateur}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
 async def remove_team_member(
     id_equipe: int,
     id_utilisateur: int,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    team = await get_team_or_404(db, id_equipe)
-    project = await get_project_or_404(db, team.id_projet)
-    await ensure_project_admin(project, current_user)
-
     member_result = await db.execute(
         select(models.Appartient_Equipe).filter(
             models.Appartient_Equipe.id_equipe == id_equipe,
@@ -154,16 +157,12 @@ async def remove_team_member(
     await db.commit()
 
 
-@router.get("/{id_equipe}/membres", response_model=List[Schemas.UserResponse])
+@router.get("/{id_equipe}/membres", response_model=List[Schemas.UserResponse], dependencies=[Depends(RequireProjectRole(["chef_projet", "collaborateur", "invite_externe"]))])
 async def get_team_members(
     id_equipe: int,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    team = await get_team_or_404(db, id_equipe)
-    project = await get_project_or_404(db, team.id_projet)
-    await ensure_project_access(db, project, current_user)
-
     members_result = await db.execute(
         select(models.User)
         .join(models.Appartient_Equipe, models.User.id == models.Appartient_Equipe.id_personnel)
@@ -173,17 +172,13 @@ async def get_team_members(
     return members_result.scalars().all()
 
 
-@router.put("/{id_equipe}/membres", status_code=status.HTTP_200_OK)
+@router.put("/{id_equipe}/membres", status_code=status.HTTP_200_OK, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
 async def sync_team_members(
     id_equipe: int,
     user_ids: List[int],
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    team = await get_team_or_404(db, id_equipe)
-    project = await get_project_or_404(db, team.id_projet)
-    await ensure_project_admin(project, current_user)
-
     await db.execute(delete(models.Appartient_Equipe).where(models.Appartient_Equipe.id_equipe == id_equipe))
 
     existing_ids: List[int] = []
