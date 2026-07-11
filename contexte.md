@@ -49,6 +49,8 @@ TaskManager licence/
 │   │   └── *Service.ts      # Services API spécifiques (auth, task, project, etc.)
 │   ├── package.json         # Dépendances Node.js / Expo
 │   └── app.json             # Configuration de l'application Expo
+└── WORKFLOW.md              # Conventions de code, stratégie Git et organisation
+
 ```
 
 ---

@@ -285,4 +285,4 @@ Ce document est la feuille de route officielle du projet. Chaque phase est déco
 
 ---
 
-*Prochaine étape : un fichier définissant le workflow de travail (git, conventions de code, organisation quotidienne).*
+*Workflow de travail défini et validé dans WORKFLOW.md (Phase Complétée).*
