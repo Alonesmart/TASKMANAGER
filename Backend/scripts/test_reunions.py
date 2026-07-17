@@ -1,3 +1,5 @@
+import os
+import sys
 import asyncio
 from datetime import datetime, timedelta
 from sqlalchemy import select, text
@@ -107,8 +109,9 @@ async def test_reunions():
         # Check that user received a notification
         notifs_res = await db.execute(select(models.Notification).where(models.Notification.id_utilisateur == user_id))
         notifs = notifs_res.scalars().all()
-        assert len(notifs) == 1
-        assert "Sync Hebdomadaire" in notifs[0].message
+        # Filtrer pour ne garder que la notif de la réunion
+        relevant_notifs = [n for n in notifs if "Sync Hebdomadaire" in n.message]
+        assert len(relevant_notifs) == 1
         print("   [OK] Notification d'invitation reçue par l'invité.")
 
     print("6. Test de listage des réunions...")
@@ -147,9 +150,9 @@ async def test_reunions():
         # Check that admin received notification about confirmation
         admin_notifs_res = await db.execute(select(models.Notification).where(models.Notification.id_utilisateur == admin_id))
         admin_notifs = admin_notifs_res.scalars().all()
-        assert len(admin_notifs) == 1
-        assert "Sync Hebdomadaire" in admin_notifs[0].message
-        assert "confirmé" in admin_notifs[0].message
+        # Filtrer pour ne garder que la notif de confirmation
+        relevant_notifs = [n for n in admin_notifs if "Sync Hebdomadaire" in n.message and "confirmé" in n.message]
+        assert len(relevant_notifs) == 1
         print("   [OK] Notification de confirmation reçue par l'organisateur.")
 
     print("9. Nettoyage final...")

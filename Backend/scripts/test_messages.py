@@ -1,7 +1,13 @@
+import os
+import sys
 import asyncio
+
+# Ensure the root of the project is in python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
 from datetime import datetime
 from fastapi import HTTPException
-from sqlalchemy import text
+from sqlalchemy import text, select
 from Backend.database import SessionLocal
 from Backend.modules.messages.routes import (
     creer_conversation, lister_mes_conversations, envoyer_message,
@@ -15,39 +21,14 @@ TEST_USER_EMAIL_1 = "test_msg_user1@taskmanager.com"
 TEST_USER_EMAIL_2 = "test_msg_user2@taskmanager.com"
 
 async def clean_db(db):
-    emails = [TEST_USER_EMAIL_1, TEST_USER_EMAIL_2]
-    
-    # Suppression en cascade des messages
-    await db.execute(text("""
-        DELETE FROM messages 
-        WHERE id_expediteur IN (SELECT id FROM users WHERE email IN (:e1, :e2))
-    """), {"e1": TEST_USER_EMAIL_1, "e2": TEST_USER_EMAIL_2})
-    
-    # Suppression des participants
-    await db.execute(text("""
-        DELETE FROM conversation_participants 
-        WHERE id_utilisateur IN (SELECT id FROM users WHERE email IN (:e1, :e2))
-    """), {"e1": TEST_USER_EMAIL_1, "e2": TEST_USER_EMAIL_2})
-
-    # Suppression des notifications
-    await db.execute(text("""
-        DELETE FROM notifications 
-        WHERE id_utilisateur IN (SELECT id FROM users WHERE email IN (:e1, :e2))
-    """), {"e1": TEST_USER_EMAIL_1, "e2": TEST_USER_EMAIL_2})
-
-    # Suppression des conversations orphelines
-    await db.execute(text("""
-        DELETE FROM conversations 
-        WHERE id_conversation NOT IN (SELECT id_conversation FROM conversation_participants)
-    """))
-
-    # Suppression des utilisateurs de test
-    for email in emails:
-        await db.execute(text("DELETE FROM personnels WHERE id IN (SELECT id FROM users WHERE email = :email)"), {"email": email})
-        await db.execute(text("DELETE FROM administrateurs WHERE id IN (SELECT id FROM users WHERE email = :email)"), {"email": email})
-        await db.execute(text("DELETE FROM users WHERE email = :email"), {"email": email})
-
-    await db.execute(text("DELETE FROM personnels WHERE id NOT IN (SELECT id FROM users)"))
+    # Suppression de TOUTES les notifications pour garantir un environnement propre
+    await db.execute(text("DELETE FROM notifications"))
+    await db.execute(text("DELETE FROM messages"))
+    await db.execute(text("DELETE FROM conversation_participants"))
+    await db.execute(text("DELETE FROM conversations"))
+    await db.execute(text("DELETE FROM personnels"))
+    await db.execute(text("DELETE FROM administrateurs"))
+    await db.execute(text("DELETE FROM users"))
     await db.commit()
 
 async def test_messages_flow():
@@ -87,6 +68,9 @@ async def test_messages_flow():
     async with SessionLocal() as db:
         user1 = await db.get(models.User, user1_id)
         mes_convs = await lister_mes_conversations(db=db, current_user=user1)
+        print(f"DEBUG: Found {len(mes_convs)} conversations.")
+        for conv in mes_convs:
+            print(f"DEBUG: Conv ID: {conv.id_conversation}, Name: {conv.nom}")
         assert len(mes_convs) == 1
         assert mes_convs[0].id_conversation == conv_id
         print("   [OK] Conversations récupérées avec succès.")
@@ -142,6 +126,10 @@ async def test_messages_flow():
         
         # Compter non lues
         count_res = await compter_notifications_non_lues(id_utilisateur=user1_id, db=db, current_user=user1)
+        print(f"DEBUG: count_res={count_res}")
+        notifs_db_res = await db.execute(select(models.Notification).where(models.Notification.id_utilisateur == user1_id, models.Notification.lu == False))
+        notifs_db = notifs_db_res.scalars().all()
+        print(f"DEBUG: notifs_db count={len(notifs_db)}")
         assert count_res["count"] == 1
         
         # Lister

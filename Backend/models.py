@@ -18,6 +18,8 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(50))  # Sert de discriminant pour le polymorphisme
     actif: Mapped[bool] = mapped_column(Boolean, default=True)
     tentatives: Mapped[int] = mapped_column(Integer, default=0)
+    en_ligne: Mapped[bool] = mapped_column(Boolean, default=False)
+    derniere_connexion: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Relations communes ou globales
     messages_envoyes: Mapped[List["Message"]] = relationship("Message", foreign_keys="Message.id_expediteur", back_populates="expediteur")
@@ -28,6 +30,7 @@ class User(Base):
     taches_assignees: Mapped[List["TacheAssignation"]] = relationship("TacheAssignation", back_populates="utilisateur")
     projets_roles: Mapped[List["ProjetMembreRole"]] = relationship("ProjetMembreRole", back_populates="utilisateur", cascade="all, delete-orphan")
     reunion_invitations: Mapped[List["ParticipationReunion"]] = relationship("ParticipationReunion", back_populates="utilisateur", cascade="all, delete-orphan")
+    google_credentials: Mapped[List["GoogleCredential"]] = relationship("GoogleCredential", back_populates="user", cascade="all, delete-orphan")
 
     __mapper_args__ = {
         "polymorphic_on": role,
@@ -96,11 +99,17 @@ class Tache(Base):
     etat: Mapped[str] = mapped_column(String(50), default="active")
     id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), index=True)
 
+    preuve_texte: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    id_document_preuve: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
+    commentaire_rejet: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     projet: Mapped["Projet"] = relationship("Projet", back_populates="taches", lazy="selectin")
     commentaires: Mapped[List["Commentaire"]] = relationship("Commentaire", back_populates="tache", cascade="all, delete-orphan")
     notifications_declenchees: Mapped[List["Notification"]] = relationship("Notification", back_populates="tache_origine")
     assignations: Mapped[List["TacheAssignation"]] = relationship("TacheAssignation", back_populates="tache", cascade="all, delete-orphan", lazy="selectin")
-    documents: Mapped[List["Document"]] = relationship("Document", back_populates="tache", cascade="all, delete-orphan")
+    documents: Mapped[List["Document"]] = relationship("Document", back_populates="tache", cascade="all, delete-orphan", foreign_keys="[Document.id_tache]")
+    document_preuve: Mapped[Optional["Document"]] = relationship("Document", foreign_keys=[id_document_preuve])
+    historique_validation: Mapped[List["HistoriqueValidationTache"]] = relationship("HistoriqueValidationTache", back_populates="tache", cascade="all, delete-orphan", lazy="selectin")
 
     dependencies: Mapped[List["Tache"]] = relationship(
         "Tache",
@@ -119,6 +128,20 @@ class Tache(Base):
         back_populates="dependencies",
         lazy="selectin"
     )
+
+
+class HistoriqueValidationTache(Base):
+    __tablename__ = "historique_validation_taches"
+    id_historique: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id_tache: Mapped[int] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="CASCADE"), index=True)
+    ancien_statut: Mapped[str] = mapped_column(String(50))
+    nouveau_statut: Mapped[str] = mapped_column(String(50))
+    id_acteur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    commentaire: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    tache: Mapped["Tache"] = relationship("Tache", back_populates="historique_validation")
+    acteur: Mapped["User"] = relationship("User")
 
 
 class TacheAssignation(Base):
@@ -199,7 +222,7 @@ class Document(Base):
     date_upload: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     projet: Mapped[Optional["Projet"]] = relationship("Projet", back_populates="documents")
-    tache: Mapped[Optional["Tache"]] = relationship("Tache", back_populates="documents")
+    tache: Mapped[Optional["Tache"]] = relationship("Tache", back_populates="documents", foreign_keys=[id_tache])
     uploader: Mapped["User"] = relationship("User")
 
 
@@ -210,13 +233,33 @@ class Rapport(Base):
     contenu: Mapped[str] = mapped_column(Text)
     type: Mapped[str] = mapped_column(String(50))
     periode: Mapped[str] = mapped_column(String(100), default="non_specifie")
-    statut: Mapped[str] = mapped_column(String(50), default="pending")
+    statut: Mapped[str] = mapped_column(String(50), default="brouillon")
     date_generation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    date_soumission: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    date_validation: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    commentaire_validation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     id_projet: Mapped[int] = mapped_column(Integer, ForeignKey("projets.id_projet", ondelete="CASCADE"), index=True)
     id_personnel: Mapped[int] = mapped_column(Integer, ForeignKey("personnels.id"))
+    id_tache: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="SET NULL"), nullable=True, index=True)
 
     projet: Mapped["Projet"] = relationship("Projet", back_populates="rapports")
     personnel: Mapped["Personnel"] = relationship("Personnel", back_populates="rapports_generes")
+    tache: Mapped[Optional["Tache"]] = relationship("Tache")
+    historique: Mapped[List["HistoriqueRapport"]] = relationship("HistoriqueRapport", back_populates="rapport", cascade="all, delete-orphan")
+
+
+class HistoriqueRapport(Base):
+    __tablename__ = "historique_rapports"
+    id_historique: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id_rapport: Mapped[int] = mapped_column(Integer, ForeignKey("rapports.id_rapport", ondelete="CASCADE"), index=True)
+    ancien_statut: Mapped[str] = mapped_column(String(50))
+    nouveau_statut: Mapped[str] = mapped_column(String(50))
+    id_acteur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    date: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    commentaire: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    rapport: Mapped["Rapport"] = relationship("Rapport", back_populates="historique")
+    acteur: Mapped["User"] = relationship("User")
 
 
 class Commentaire(Base):
@@ -240,8 +283,11 @@ class Conversation(Base):
     id_conversation: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     nom: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     type: Mapped[str] = mapped_column(String(50), default="direct")  # 'direct' or 'groupe'
+    id_admin: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    avatar: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    admin: Mapped[Optional["User"]] = relationship("User", foreign_keys=[id_admin])
     participants: Mapped[List["ConversationParticipant"]] = relationship("ConversationParticipant", back_populates="conversation", cascade="all, delete-orphan")
     messages: Mapped[List["Message"]] = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
 
@@ -270,6 +316,7 @@ class Message(Base):
     type_conversation: Mapped[str] = mapped_column(String(50))
     date_envoi: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     lu: Mapped[bool] = mapped_column(Boolean, default=False)
+    statut: Mapped[str] = mapped_column(String(50), default="envoye")  # 'envoye', 'distribue', 'lu'
     id_expediteur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     id_ia: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("assistants_ia.id_ia"), nullable=True)
     id_conversation: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("conversations.id_conversation"), nullable=True)
@@ -277,6 +324,18 @@ class Message(Base):
     expediteur: Mapped["User"] = relationship("User", foreign_keys=[id_expediteur], back_populates="messages_envoyes")
     assistant: Mapped[Optional["AssistantIA"]] = relationship("AssistantIA", back_populates="messages_assistes")
     conversation: Mapped[Optional["Conversation"]] = relationship("Conversation", back_populates="messages")
+    lectures: Mapped[List["LectureMessage"]] = relationship("LectureMessage", back_populates="message", cascade="all, delete-orphan")
+
+
+class LectureMessage(Base):
+    __tablename__ = "lectures_messages"
+    id_lecture: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id_message: Mapped[int] = mapped_column(Integer, ForeignKey("messages.id_message", ondelete="CASCADE"))
+    id_utilisateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    date_lecture: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    message: Mapped["Message"] = relationship("Message", back_populates="lectures")
+    utilisateur: Mapped["User"] = relationship("User")
 
 
 class Notification(Base):
@@ -287,9 +346,11 @@ class Notification(Base):
     date_envoi: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     id_utilisateur: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     id_tache: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("taches.id_tache", ondelete="SET NULL"), nullable=True)
+    id_conversation: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("conversations.id_conversation", ondelete="CASCADE"), nullable=True)
 
     utilisateur: Mapped["User"] = relationship("User", back_populates="notifications")
     tache_origine: Mapped[Optional["Tache"]] = relationship("Tache", back_populates="notifications_declenchees")
+    conversation: Mapped[Optional["Conversation"]] = relationship("Conversation")
 
 
 # ==============================================================================
@@ -334,3 +395,14 @@ class ResetToken(Base):
     used: Mapped[bool] = mapped_column(Boolean, default=False)
 
     user: Mapped["User"] = relationship("User", back_populates="reset_tokens")
+
+class GoogleCredential(Base):
+    __tablename__ = "google_credentials"
+    
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    access_token: Mapped[str] = mapped_column(String(500))
+    refresh_token: Mapped[str] = mapped_column(String(500))
+    token_expiry: Mapped[datetime] = mapped_column(DateTime)
+    
+    user: Mapped["User"] = relationship("User", back_populates="google_credentials")

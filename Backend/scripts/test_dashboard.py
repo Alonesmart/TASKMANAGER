@@ -147,6 +147,7 @@ async def test_dashboard_flow():
     async with SessionLocal() as db:
         admin = await db.get(models.User, admin_id)
         metrics = await get_global_dashboard(db=db, current_user=admin)
+        print(f"DEBUG: active_projects={metrics['active_projects']}")
         
         # 1 projet actif (le projet 2 est inactif)
         assert metrics["active_projects"] == 1

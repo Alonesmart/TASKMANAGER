@@ -1,9 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "@/theme";
+import { conversationService } from "@/services/conversationService";
+import { websocketService } from "@/services/websocketService";
+import { userService } from "@/services/userService";
+import { projectService } from "@/services/projectService";
+import { reportService } from "@/services/reportService";
 
 // ─── Tab Icon ──────────────────────────────────────────────────────────────────
 type TabIconProps = {
@@ -11,9 +16,10 @@ type TabIconProps = {
   label: string;
   focused: boolean;
   color: string;
+  badgeCount?: number;
 };
 
-const TabIcon = ({ icon, label, focused, color }: TabIconProps) => {
+const TabIcon = ({ icon, label, focused, color, badgeCount }: TabIconProps) => {
   const { theme } = useAppTheme();
 
   return (
@@ -26,6 +32,13 @@ const TabIcon = ({ icon, label, focused, color }: TabIconProps) => {
       >
         {focused && <View style={[styles.topPill, { backgroundColor: color }]} />}
         {icon}
+        {badgeCount && badgeCount > 0 ? (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>
+              {badgeCount > 99 ? "99+" : badgeCount}
+            </Text>
+          </View>
+        ) : null}
       </View>
       <Text
         style={[
@@ -45,6 +58,101 @@ const TabIcon = ({ icon, label, focused, color }: TabIconProps) => {
 export default function TabsLayout() {
   const { t } = useTranslation();
   const { theme } = useAppTheme();
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [toValidateCount, setToValidateCount] = useState(0);
+  const [tasksToValidateCount, setTasksToValidateCount] = useState(0);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const convs = await conversationService.getMyConversations();
+      const count = convs.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+      setUnreadMessages(count);
+    } catch (e) {
+      console.error("Failed to fetch unread count:", e);
+    }
+  }, []);
+
+  const fetchReportsToValidateCount = useCallback(async () => {
+    try {
+      const user = await userService.getCurrentUser();
+      const projects = await projectService.getProjects();
+      const hasManagerRole = projects.some(p => p.id_administrateur === user?.id) || user?.role === "admin";
+      if (hasManagerRole || user?.role === "admin") {
+        const toVal = await reportService.getReportsToValidate();
+        setToValidateCount(toVal.length);
+      } else {
+        setToValidateCount(0);
+      }
+    } catch (e) {
+      console.log("Failed to fetch reports to validate count:", e);
+      setToValidateCount(0);
+    }
+  }, []);
+
+  const fetchTasksToValidateCount = useCallback(async () => {
+    try {
+      const user = await userService.getCurrentUser();
+      const currentUid = user?.id;
+      const isUserAdmin = user?.role === "admin";
+      
+      const tasks = await projectService.getTasks();
+      
+      let count = 0;
+      const cache: Record<number, any[]> = {};
+      const invitationService = require("../../../services/invitationService").invitationService;
+
+      for (const t of tasks) {
+        if (t.statut === "terminee_en_attente") {
+          let canVal = false;
+          if (isUserAdmin) {
+            canVal = true;
+          } else if (t.projet?.id_administrateur === currentUid) {
+            canVal = true;
+          } else {
+            try {
+              if (!cache[t.id_projet]) {
+                const members = await invitationService.getProjectMembers(t.id_projet);
+                cache[t.id_projet] = members;
+              }
+              const userInProject = cache[t.id_projet].find((m: any) => m.id === currentUid);
+              if (userInProject?.role === "chef_projet") {
+                canVal = true;
+              }
+            } catch (err) {
+              console.error(err);
+            }
+          }
+          if (canVal) {
+            count++;
+          }
+        }
+      }
+      setTasksToValidateCount(count);
+    } catch (e) {
+      console.log("Failed to fetch tasks to validate count:", e);
+      setTasksToValidateCount(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadCount();
+    fetchReportsToValidateCount();
+    fetchTasksToValidateCount();
+
+    const unsubscribe = websocketService.subscribe((msg) => {
+      if (msg.type === "NEW_MESSAGE" || msg.type === "MESSAGE_STATUS_UPDATE") {
+        fetchUnreadCount();
+      }
+      if (msg.type === "NEW_NOTIFICATION") {
+        fetchReportsToValidateCount();
+        fetchTasksToValidateCount();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [fetchUnreadCount, fetchReportsToValidateCount]);
 
   return (
     <Tabs
@@ -73,11 +181,14 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ href: null }} />
       <Tabs.Screen name="edit-profile" options={{ href: null }} />
       <Tabs.Screen name="new-message" options={{ href: null }} />
+      <Tabs.Screen name="new-group" options={{ href: null }} />
+      <Tabs.Screen name="group-details" options={{ href: null }} />
       <Tabs.Screen name="new-projet" options={{ href: null }} />
       <Tabs.Screen name="new-report" options={{ href: null }} />
       <Tabs.Screen name="new-tasks" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="TabBar" options={{ href: null }} />
+      <Tabs.Screen name="conversation" options={{ href: null }} />
 
       {/* ── Home ── */}
       <Tabs.Screen
@@ -124,6 +235,7 @@ export default function TabsLayout() {
               focused={focused}
               color={color}
               label={t("tabs.tasks")}
+              badgeCount={tasksToValidateCount}
               icon={
                 <Ionicons
                   name={focused ? "checkbox" : "checkbox-outline"}
@@ -166,6 +278,7 @@ export default function TabsLayout() {
               focused={focused}
               color={color}
               label={t("tabs.messages")}
+              badgeCount={unreadMessages}
               icon={
                 <Ionicons
                   name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"}
@@ -186,6 +299,7 @@ export default function TabsLayout() {
               focused={focused}
               color={color}
               label={t("tabs.reports")}
+              badgeCount={toValidateCount}
               icon={
                 <Ionicons
                   name={focused ? "stats-chart" : "stats-chart-outline"}
@@ -255,6 +369,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   labelActive: {
+    fontWeight: "700",
+  },
+  badge: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    backgroundColor: "#d92d20",
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 8,
     fontWeight: "700",
   },
 });

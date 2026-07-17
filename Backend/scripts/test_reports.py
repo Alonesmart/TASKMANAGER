@@ -3,7 +3,7 @@ from datetime import date
 from fastapi import HTTPException
 from sqlalchemy import text
 from Backend.database import SessionLocal
-from Backend.modules.reports.routes import creer_rapport, recuperer_mes_rapports, modifier_statut_rapport
+from Backend.modules.reports.routes import creer_rapport, recuperer_mes_rapports, modifier_rapport, soumettre_rapport
 from Backend.modules.project.routes import create_project
 from Backend.Schemas import RapportCreate, ProjetCreate
 from Backend import models
@@ -109,7 +109,7 @@ async def test_reports_flow():
         )
         rapport = await creer_rapport(rapport_in=rapport_schema, db=db, current_user=staff1)
         assert rapport.titre == "Rapport d'activité Hebdo"
-        assert rapport.statut == "pending"
+        assert rapport.statut == "brouillon"
         rapport_id = rapport.id_rapport
         print("   [OK] Rapport créé avec succès par le personnel.")
 
@@ -140,9 +140,18 @@ async def test_reports_flow():
 
     # --- TEST 3: Validation / Modification statut ---
     print("6. Test de modification du statut du rapport...")
+    # Soumission par le personnel
+    async with SessionLocal() as db:
+        staff1 = await db.get(models.User, staff1_id)
+        await soumettre_rapport(id_rapport=rapport_id, db=db, current_user=staff1)
+        print("   [OK] Rapport soumis avec succès par le personnel.")
+
+    # Validation par l'admin
     async with SessionLocal() as db:
         admin1 = await db.get(models.User, admin1_id)
-        rapport_valide = await modifier_statut_rapport(id_rapport=rapport_id, nouveau_statut="valide", db=db, current_user=admin1)
+        from Backend.modules.reports.routes import valider_rapport
+        from Backend.Schemas import RapportValidation
+        rapport_valide = await valider_rapport(id_rapport=rapport_id, validation_in=RapportValidation(commentaire="Validation par admin"), db=db, current_user=admin1)
         assert rapport_valide.statut == "valide"
         print("   [OK] Statut du rapport modifié en 'valide' par l'administrateur.")
 
@@ -150,11 +159,13 @@ async def test_reports_flow():
     async with SessionLocal() as db:
         staff1 = await db.get(models.User, staff1_id)
         try:
-            await modifier_statut_rapport(id_rapport=rapport_id, nouveau_statut="rejete", db=db, current_user=staff1)
-            raise AssertionError("Un membre du personnel a pu modifier le statut d'un rapport.")
+            from Backend.modules.reports.routes import valider_rapport
+            from Backend.Schemas import RapportValidation
+            await valider_rapport(id_rapport=rapport_id, validation_in=RapportValidation(commentaire="Validation par staff"), db=db, current_user=staff1)
+            raise AssertionError("Un membre du personnel a pu valider un rapport.")
         except HTTPException as e:
             assert e.status_code == 403
-            print("   [OK] Refus de modification de statut par un non-administrateur (HTTP 403).")
+            print("   [OK] Refus de validation de statut par un non-administrateur (HTTP 403).")
 
     # --- NETTOYAGE ---
     print("7. Nettoyage final...")

@@ -39,7 +39,7 @@ async def create_admin(nom, email, password):
         new_admin = models.Administrateur(
             nom=nom,
             email=email,
-            phone="0000000000",
+            phone="657902986",
             motdepasse=hashed_pw,
             role="admin",
             actif=True

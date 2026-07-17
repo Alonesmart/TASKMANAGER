@@ -49,6 +49,11 @@ export const messageService = {
     return response.data;
   },
 
+  async updateMessage(idMessage: number, contenu: string): Promise<Message> {
+    const response = await apiClient.put(`/api/v1/comm/messages/${idMessage}`, { contenu });
+    return response.data;
+  },
+
   // --- NOTIFICATIONS ---
 
   async getNotifications(userId: number): Promise<Notification[]> {

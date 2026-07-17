@@ -1,5 +1,5 @@
 import { projectService } from "@/services/projectService";
-import type { Task } from "@/services/taskService";
+import { taskService, type Task, type HistoriqueValidationTache } from "@/services/taskService";
 import { userService } from "@/services/userService";
 import { useAppTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,6 +8,8 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import DocumentSection from "../../../components/DocumentSection";
+import * as DocumentPicker from "expo-document-picker";
+import { documentService } from "@/services/documentService";
 import {
   Alert,
   Modal,
@@ -16,24 +18,28 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
+  Linking,
+  ActivityIndicator
 } from "react-native";
 import AddButton from "../../../components/AddButton";
 
 // ─── TYPES ─────────────────────────────────────────────────────────────────────
-type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminees";
+type TaskFilter = "toutes" | "a_faire" | "en_cours" | "terminee_en_attente" | "terminees";
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 const FILTERS = [
   { id: "toutes", color: "#3b82f6" },
   { id: "a_faire", color: "#f59e0b" },
   { id: "en_cours", color: "#06b6d4" },
+  { id: "terminee_en_attente", color: "#a855f7" },
   { id: "terminees", color: "#ef4444" },
 ] as const;
 
 const STATUT_NEXT: Record<string, string> = {
   a_faire:   "en_cours",
-  en_cours:  "terminees",
+  en_cours:  "terminee_en_attente",
+  terminee_en_attente: "terminees",
   terminees: "a_faire",
 };
 
@@ -45,6 +51,7 @@ const TaskCard = ({
   onEdit,
   onDelete,
   canEditDelete,
+  canValidate,
 }: {
   task: Task;
   onChangeStatut: (id: number, s: string) => void;
@@ -52,6 +59,7 @@ const TaskCard = ({
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   canEditDelete: boolean;
+  canValidate: boolean;
 }) => {
   const { t } = useTranslation();
   const PRIORITE_CONFIG: Record<string, { label: string; color: string }> = {
@@ -62,6 +70,7 @@ const TaskCard = ({
   const STATUT_CONFIG: Record<string, { label: string; color: string }> = {
     a_faire: { label: t("tasks.status_todo"), color: "#f59e0b" },
     en_cours: { label: t("tasks.status_in_progress"), color: "#06b6d4" },
+    terminee_en_attente: { label: "À valider", color: "#a855f7" },
     terminees: { label: t("tasks.status_done"), color: "#ef4444" },
   };
   const prio = PRIORITE_CONFIG[task.priorite] ?? PRIORITE_CONFIG.moyenne;
@@ -93,14 +102,20 @@ const TaskCard = ({
       )}
 
       {/* Statut cliquable */}
-      <TouchableOpacity
-        style={[cStyles.statutBtn, { backgroundColor: statut.color + "22", borderColor: statut.color }]}
-        onPress={() => onChangeStatut(task.id_tache, STATUT_NEXT[task.statut] ?? "a_faire")}
-        activeOpacity={0.8}
-      >
-        <Text style={[cStyles.statutTxt, { color: statut.color }]}>{statut.label}</Text>
-        <Ionicons name="chevron-forward" size={11} color={statut.color} />
-      </TouchableOpacity>
+      {(() => {
+        const isClickable = task.statut !== "terminees" && (task.statut !== "terminee_en_attente" || canValidate);
+        return (
+          <TouchableOpacity
+            style={[cStyles.statutBtn, { backgroundColor: statut.color + "22", borderColor: statut.color }]}
+            onPress={() => isClickable && onChangeStatut(task.id_tache, STATUT_NEXT[task.statut] ?? "a_faire")}
+            activeOpacity={isClickable ? 0.8 : 1}
+            disabled={!isClickable}
+          >
+            <Text style={[cStyles.statutTxt, { color: statut.color }]}>{statut.label}</Text>
+            {isClickable && <Ionicons name="chevron-forward" size={11} color={statut.color} />}
+          </TouchableOpacity>
+        );
+      })()}
 
       {/* Meta */}
       <View style={cStyles.metaRow}>
@@ -181,10 +196,35 @@ export default function Tasks() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<"mine" | "to_validate">("mine");
+  const [tasksToValidate, setTasksToValidate] = useState<Task[]>([]);
+  const [taskHistory, setTaskHistory] = useState<HistoriqueValidationTache[]>([]);
+
+  // Submission
+  const [submissionVisible, setSubmissionVisible] = useState(false);
+  const [submissionTask, setSubmissionTask] = useState<Task | null>(null);
+  const [proofText, setProofText] = useState("");
+  const [proofDoc, setProofDoc] = useState<any | null>(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
+
+  // Validation
+  const [validationVisible, setValidationVisible] = useState(false);
+  const [validationTask, setValidationTask] = useState<Task | null>(null);
+  const [validationComment, setValidationComment] = useState("");
+  const [validatingTask, setValidatingTask] = useState(false);
+
+  // Rejection
+  const [rejectionVisible, setRejectionVisible] = useState(false);
+  const [rejectionTask, setRejectionTask] = useState<Task | null>(null);
+  const [rejectionComment, setRejectionComment] = useState("");
+  const [rejectingTask, setRejectingTask] = useState(false);
+
   const filters = [
     { id: "toutes" as const, label: t("tasks.filter_all"), color: "#3b82f6" },
     { id: "a_faire" as const, label: t("tasks.filter_todo"), color: "#f59e0b" },
     { id: "en_cours" as const, label: t("tasks.filter_in_progress"), color: "#06b6d4" },
+    { id: "terminee_en_attente" as const, label: "À valider", color: "#a855f7" },
     { id: "terminees" as const, label: t("tasks.filter_done"), color: "#ef4444" },
   ];
 
@@ -195,6 +235,7 @@ export default function Tasks() {
       try {
         const user = await userService.getCurrentUser();
         setIsAdmin(user?.role === "admin");
+        setCurrentUserId(user?.id || null);
       } catch (error) {
         console.error("Error fetching current user:", error);
       }
@@ -206,8 +247,44 @@ export default function Tasks() {
   const fetchTasks = async () => {
     setLoading(true);
     try {
+      const user = await userService.getCurrentUser();
+      const currentUid = user?.id;
+      const isUserAdmin = user?.role === "admin";
+
       const data = await projectService.getTasks();
       setTasks(data);
+
+      const toVal: Task[] = [];
+      const cache: Record<number, any[]> = {};
+      const invitationService = require("../../../services/invitationService").invitationService;
+
+      for (const t of data) {
+        if (t.statut === "terminee_en_attente") {
+          let canVal = false;
+          if (isUserAdmin) {
+            canVal = true;
+          } else if (t.projet?.id_administrateur === currentUid) {
+            canVal = true;
+          } else {
+            try {
+              if (!cache[t.id_projet]) {
+                const members = await invitationService.getProjectMembers(t.id_projet);
+                cache[t.id_projet] = members;
+              }
+              const userInProject = cache[t.id_projet].find((m: any) => m.id === currentUid);
+              if (userInProject?.role === "chef_projet") {
+                canVal = true;
+              }
+            } catch (err) {
+              console.error("Error checking project role", err);
+            }
+          }
+          if (canVal) {
+            toVal.push(t);
+          }
+        }
+      }
+      setTasksToValidate(toVal);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
@@ -216,9 +293,76 @@ export default function Tasks() {
   };
 
   const handleChangeStatut = async (id: number, statut: string) => {
+    const task = tasks.find((t) => t.id_tache === id);
+    if (!task) return;
+
+    if (statut === "terminee_en_attente") {
+      setSubmissionTask(task);
+      setProofText("");
+      setProofDoc(null);
+      setSubmissionVisible(true);
+      return;
+    }
+
+    if (statut === "terminees") {
+      if (task.statut === "terminee_en_attente") {
+        setValidationTask(task);
+        setValidationComment("");
+        setValidationVisible(true);
+        return;
+      }
+      
+      const user = await userService.getCurrentUser();
+      const isUserAdmin = user?.role === "admin";
+      const isChef = task.projet?.id_administrateur === user?.id;
+      
+      if (isUserAdmin || isChef) {
+        try {
+          await projectService.updateTask(id, { statut });
+          await fetchTasks();
+          
+          Alert.alert(
+            t("tasks.completion_alert_title", "Tâche terminée !"),
+            t("tasks.completion_alert_desc", "Voulez-vous rédiger le rapport de complétion de cette tâche ?"),
+            [
+              { text: t("common.no", "Plus tard"), style: "cancel" },
+              {
+                text: t("common.yes", "Rédiger"),
+                onPress: () => {
+                  router.push({
+                    pathname: "/(tabs)/Home/new-report",
+                    params: {
+                      id_projet: task?.id_projet?.toString(),
+                      id_tache: task?.id_tache?.toString(),
+                      titre_tache: task?.titre,
+                    },
+                  });
+                },
+              },
+            ]
+          );
+        } catch (error) {
+          console.error(error);
+          Alert.alert("Erreur", "Impossible de terminer la tâche.");
+        }
+      } else {
+        setSubmissionTask(task);
+        setProofText("");
+        setProofDoc(null);
+        setSubmissionVisible(true);
+      }
+      return;
+    }
+
+    if (statut === "en_cours" && task.statut === "terminee_en_attente") {
+      setRejectionTask(task);
+      setRejectionComment("");
+      setRejectionVisible(true);
+      return;
+    }
+
     try {
       await projectService.updateTask(id, { statut });
-      // Refresh la liste complète depuis l'API au lieu de mettre à jour localement
       await fetchTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
@@ -226,12 +370,96 @@ export default function Tasks() {
     }
   };
 
+  const handleConfirmSubmission = async () => {
+    if (!submissionTask) return;
+    setSubmittingProof(true);
+    try {
+      await taskService.soumettreTacheTerminee(submissionTask.id_tache, {
+        preuve_texte: proofText,
+        id_document_preuve: proofDoc?.id || null,
+      });
+      Alert.alert("Succès", "Tâche soumise pour validation !");
+      setSubmissionVisible(false);
+      setSubmissionTask(null);
+      await fetchTasks();
+    } catch (error) {
+      console.error("Error submitting task:", error);
+      Alert.alert("Erreur", "Impossible de soumettre la tâche");
+    } finally {
+      setSubmittingProof(false);
+    }
+  };
+
+  const handleConfirmValidation = async () => {
+    if (!validationTask) return;
+    setValidatingTask(true);
+    try {
+      await taskService.validerTache(validationTask.id_tache, {
+        commentaire: validationComment,
+      });
+      Alert.alert("Succès", "Tâche validée !");
+      setValidationVisible(false);
+      setValidationTask(null);
+      await fetchTasks();
+      
+      Alert.alert(
+        t("tasks.completion_alert_title", "Tâche terminée !"),
+        t("tasks.completion_alert_desc", "Voulez-vous rédiger le rapport de complétion de cette tâche ?"),
+        [
+          { text: t("common.no", "Plus tard"), style: "cancel" },
+          {
+            text: t("common.yes", "Rédiger"),
+            onPress: () => {
+              router.push({
+                pathname: "/(tabs)/Home/new-report",
+                params: {
+                  id_projet: validationTask?.id_projet?.toString(),
+                  id_tache: validationTask?.id_tache?.toString(),
+                  titre_tache: validationTask?.titre,
+                },
+              });
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error("Error validating task:", error);
+      Alert.alert("Erreur", "Impossible de valider la tâche");
+    } finally {
+      setValidatingTask(false);
+    }
+  };
+
+  const handleConfirmRejection = async () => {
+    if (!rejectionTask) return;
+    if (!rejectionComment.trim()) {
+      Alert.alert("Erreur", "Veuillez saisir un motif pour le rejet.");
+      return;
+    }
+    setRejectingTask(true);
+    try {
+      await taskService.rejeterTache(rejectionTask.id_tache, {
+        commentaire: rejectionComment,
+      });
+      Alert.alert("Tâche rejetée", "La tâche a été renvoyée en cours avec votre motif.");
+      setRejectionVisible(false);
+      setRejectionTask(null);
+      await fetchTasks();
+    } catch (error) {
+      console.error("Error rejecting task:", error);
+      Alert.alert("Erreur", "Impossible de rejeter la tâche");
+    } finally {
+      setRejectingTask(false);
+    }
+  };
+
 
   // ── Filtrage ──────────────────────────────────────────────────────────────
-  const filtered = tasks.filter(t => {
+  const currentSourceTasks = activeTab === "mine" ? tasks : tasksToValidate;
+  const filtered = currentSourceTasks.filter(t => {
     const q           = search.trim().toLowerCase();
     const matchSearch = !q || t.titre.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q));
-    const matchFilter = activeFilter === "toutes" || t.statut === activeFilter;
+    const matchFilter = activeTab === "to_validate" || activeFilter === "toutes" || t.statut === activeFilter;
     return matchSearch && matchFilter;
   });
 
@@ -255,9 +483,16 @@ export default function Tasks() {
     });
   };
 
-  const handleDetailsTask = (task: Task) => {
+  const handleDetailsTask = async (task: Task) => {
     setSelectedTask(task);
     setDetailsVisible(true);
+    setTaskHistory([]);
+    try {
+      const hist = await taskService.getHistoriqueValidationTache(task.id_tache);
+      setTaskHistory(hist);
+    } catch (e) {
+      console.log("Failed to load validation history for task:", e);
+    }
   };
 
   const getDaysInMonth = (monthDate: Date) => {
@@ -318,6 +553,7 @@ export default function Tasks() {
     const map: Record<string, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
       a_faire: { label: t("tasks.status_todo"), color: "#f59e0b", icon: "ellipse-outline" },
       en_cours: { label: t("tasks.status_in_progress"), color: "#06b6d4", icon: "time-outline" },
+      terminee_en_attente: { label: "À valider", color: "#a855f7", icon: "hourglass-outline" },
       terminees: { label: t("tasks.status_done"), color: "#ef4444", icon: "checkmark-circle-outline" },
     };
     return map[status || ""] ?? map.a_faire;
@@ -361,6 +597,34 @@ export default function Tasks() {
           </View>
         )}
       </View>
+
+      {/* Mes tâches vs À valider Tab Bar */}
+      {(isAdmin || tasksToValidate.length > 0) && (
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "mine" && styles.tabButtonActive]}
+            onPress={() => {
+              setActiveTab("mine");
+            }}
+          >
+            <Ionicons name="clipboard-outline" size={16} color={activeTab === "mine" ? "#fff" : theme.textSecondary} />
+            <Text style={[styles.tabButtonText, activeTab === "mine" && styles.tabButtonTextActive]}>
+              Mes tâches
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === "to_validate" && styles.tabButtonActive]}
+            onPress={() => {
+              setActiveTab("to_validate");
+            }}
+          >
+            <Ionicons name="checkmark-done-circle-outline" size={16} color={activeTab === "to_validate" ? "#fff" : theme.textSecondary} />
+            <Text style={[styles.tabButtonText, activeTab === "to_validate" && styles.tabButtonTextActive]}>
+              À valider ({tasksToValidate.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -418,8 +682,8 @@ export default function Tasks() {
         </TouchableOpacity>
       </View>
 
-      {/* Tabs (Only in List View) */}
-      {viewMode === "list" && (
+      {/* Tabs (Only in List View AND only for mine tab) */}
+      {viewMode === "list" && activeTab === "mine" && (
         <>
           <View style={styles.tabs}>
             {filters.map(filter => {
@@ -480,6 +744,7 @@ export default function Tasks() {
                 onEdit={handleEditTask}
                 onDelete={handleDeleteTask}
                 canEditDelete={isAdmin}
+                canValidate={tasksToValidate.some(t => t.id_tache === task.id_tache)}
               />
             ))}
           </ScrollView>
@@ -492,7 +757,7 @@ export default function Tasks() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.kanbanScrollContent}
         >
-          {["a_faire", "en_cours", "terminees"].map(status => {
+          {["a_faire", "en_cours", "terminee_en_attente", "terminees"].map(status => {
             const columnTasks = filtered.filter(t => t.statut === status);
             const statusMeta = getStatusMeta(status);
             return (
@@ -515,46 +780,49 @@ export default function Tasks() {
                       <Text style={styles.kanbanEmptyText}>Aucune tâche</Text>
                     </View>
                   ) : (
-                    columnTasks.map(task => (
-                      <View key={task.id_tache} style={styles.kanbanCard}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.kanbanCardTitle} numberOfLines={1}>{task.titre}</Text>
-                          {!!task.description && (
-                            <Text style={styles.kanbanCardDesc} numberOfLines={2}>{task.description}</Text>
-                          )}
-                          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-                            <Text style={styles.kanbanCardDate}>{formatTaskDate(task.echeance)}</Text>
-                            
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                              {status !== "a_faire" && (
-                                <TouchableOpacity 
-                                  style={styles.kanbanMoveBtn}
-                                  onPress={() => handleChangeStatut(task.id_tache, status === "terminees" ? "en_cours" : "a_faire")}
-                                >
-                                  <Ionicons name="arrow-back-outline" size={14} color={theme.textPrimary} />
-                                </TouchableOpacity>
-                              )}
+                    columnTasks.map(task => {
+                      const canValidate = tasksToValidate.some(t => t.id_tache === task.id_tache);
+                      return (
+                        <View key={task.id_tache} style={styles.kanbanCard}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.kanbanCardTitle} numberOfLines={1}>{task.titre}</Text>
+                            {!!task.description && (
+                              <Text style={styles.kanbanCardDesc} numberOfLines={2}>{task.description}</Text>
+                            )}
+                            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+                              <Text style={styles.kanbanCardDate}>{formatTaskDate(task.echeance)}</Text>
                               
-                              <TouchableOpacity 
-                                style={styles.kanbanDetailsBtn}
-                                onPress={() => handleDetailsTask(task)}
-                              >
-                                <Ionicons name="eye-outline" size={14} color={theme.accent} />
-                              </TouchableOpacity>
-
-                              {status !== "terminees" && (
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                {status !== "a_faire" && (status !== "terminee_en_attente" || canValidate) && (
+                                  <TouchableOpacity 
+                                    style={styles.kanbanMoveBtn}
+                                    onPress={() => handleChangeStatut(task.id_tache, status === "terminees" ? "en_cours" : (status === "terminee_en_attente" ? "en_cours" : "a_faire"))}
+                                  >
+                                    <Ionicons name="arrow-back-outline" size={14} color={theme.textPrimary} />
+                                  </TouchableOpacity>
+                                )}
+                                
                                 <TouchableOpacity 
-                                  style={styles.kanbanMoveBtn}
-                                  onPress={() => handleChangeStatut(task.id_tache, status === "a_faire" ? "en_cours" : "terminees")}
+                                  style={styles.kanbanDetailsBtn}
+                                  onPress={() => handleDetailsTask(task)}
                                 >
-                                  <Ionicons name="arrow-forward-outline" size={14} color={theme.textPrimary} />
+                                  <Ionicons name="eye-outline" size={14} color={theme.accent} />
                                 </TouchableOpacity>
-                              )}
+
+                                {status !== "terminees" && (status !== "terminee_en_attente" || canValidate) && (
+                                  <TouchableOpacity 
+                                    style={styles.kanbanMoveBtn}
+                                    onPress={() => handleChangeStatut(task.id_tache, status === "a_faire" ? "en_cours" : (status === "en_cours" ? "terminee_en_attente" : "terminees"))}
+                                  >
+                                    <Ionicons name="arrow-forward-outline" size={14} color={theme.textPrimary} />
+                                  </TouchableOpacity>
+                                )}
+                              </View>
                             </View>
                           </View>
                         </View>
-                      </View>
-                    ))
+                      );
+                    })
                   )}
                 </ScrollView>
               </View>
@@ -663,6 +931,7 @@ export default function Tasks() {
                       onEdit={handleEditTask}
                       onDelete={handleDeleteTask}
                       canEditDelete={isAdmin}
+                      canValidate={tasksToValidate.some(t => t.id_tache === task.id_tache)}
                     />
                   ))}
                 </ScrollView>
@@ -814,9 +1083,385 @@ export default function Tasks() {
                     <View style={[styles.progressFill, { width: `${selectedTask.progression}%`, backgroundColor: theme.accent }]} />
                   </View>
                 </View>
+
+                {/* Motif du rejet si présent */}
+                {selectedTask.commentaire_rejet && (
+                  <View style={[styles.detailSection, { borderColor: "#ef444455", backgroundColor: "#ef444410" }]}>
+                    <View style={styles.sectionHeader}>
+                      <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
+                      <Text style={[styles.sectionTitle, { color: "#ef4444" }]}>Motif du rejet</Text>
+                    </View>
+                    <Text style={{ color: "#ef4444", fontSize: 13, lineHeight: 18 }}>
+                      "{selectedTask.commentaire_rejet}"
+                    </Text>
+                  </View>
+                )}
+
+                {/* Preuve de réalisation si présente */}
+                {(selectedTask.preuve_texte || selectedTask.id_document_preuve) && (
+                  <View style={styles.detailSection}>
+                    <View style={styles.sectionHeader}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color={theme.accent} />
+                      <Text style={styles.sectionTitle}>Preuve de réalisation</Text>
+                    </View>
+                    {selectedTask.preuve_texte && (
+                      <Text style={{ color: theme.textPrimary, fontSize: 13, lineHeight: 18, marginBottom: 8 }}>
+                        {selectedTask.preuve_texte}
+                      </Text>
+                    )}
+                    {selectedTask.id_document_preuve && (
+                      <TouchableOpacity
+                        style={[styles.proofDocBtn, { backgroundColor: theme.bg, borderColor: theme.border }]}
+                        onPress={() => {
+                          const url = documentService.getDownloadUrl(selectedTask.id_document_preuve!);
+                          Linking.openURL(url);
+                        }}
+                      >
+                        <Ionicons name="document-text-outline" size={16} color={theme.accent} />
+                        <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                          Voir le document de preuve
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+
+                {/* Actions de validation pour le chef/admin */}
+                {selectedTask.statut === "terminee_en_attente" && tasksToValidate.some(t => t.id_tache === selectedTask.id_tache) && (
+                  <View style={[styles.detailSection, { borderColor: theme.accent + "55" }]}>
+                    <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Décision de validation</Text>
+                    <TextInput
+                      style={[styles.validationInput, { color: theme.textPrimary, borderColor: theme.border, backgroundColor: theme.cardBg }]}
+                      placeholder="Commentaire ou remarques (obligatoire si rejet)..."
+                      placeholderTextColor={theme.textSecondary}
+                      value={validationComment}
+                      onChangeText={setValidationComment}
+                      multiline
+                    />
+                    <View style={styles.btnRow}>
+                      <TouchableOpacity
+                        style={[styles.rejectBtn, validatingTask && { opacity: 0.7 }]}
+                        onPress={async () => {
+                          if (!validationComment.trim()) {
+                            Alert.alert("Information", "Veuillez saisir un commentaire expliquant le motif du rejet.");
+                            return;
+                          }
+                          setValidatingTask(true);
+                          try {
+                            await taskService.rejeterTache(selectedTask.id_tache, { commentaire: validationComment });
+                            Alert.alert("Tâche rejetée", "La tâche a été renvoyée en cours avec votre motif.");
+                            setDetailsVisible(false);
+                            await fetchTasks();
+                          } catch (e) {
+                            console.error(e);
+                            Alert.alert("Erreur", "Impossible de rejeter la tâche");
+                          } finally {
+                            setValidatingTask(false);
+                          }
+                        }}
+                        disabled={validatingTask}
+                      >
+                        <Ionicons name="close-circle" size={18} color="#fff" />
+                        <Text style={styles.btnText}>Rejeter</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.validateBtn, validatingTask && { opacity: 0.7 }]}
+                        onPress={async () => {
+                          setValidatingTask(true);
+                          try {
+                            await taskService.validerTache(selectedTask.id_tache, { commentaire: validationComment });
+                            Alert.alert("Succès", "Tâche validée !");
+                            setDetailsVisible(false);
+                            await fetchTasks();
+                            
+                            Alert.alert(
+                              t("tasks.completion_alert_title", "Tâche terminée !"),
+                              t("tasks.completion_alert_desc", "Voulez-vous rédiger le rapport de complétion de cette tâche ?"),
+                              [
+                                { text: t("common.no", "Plus tard"), style: "cancel" },
+                                {
+                                  text: t("common.yes", "Rédiger"),
+                                  onPress: () => {
+                                    router.push({
+                                      pathname: "/(tabs)/Home/new-report",
+                                      params: {
+                                        id_projet: selectedTask?.id_projet?.toString(),
+                                        id_tache: selectedTask?.id_tache?.toString(),
+                                        titre_tache: selectedTask?.titre,
+                                      },
+                                    });
+                                  },
+                                },
+                              ]
+                            );
+                          } catch (e) {
+                            console.error(e);
+                            Alert.alert("Erreur", "Impossible de valider la tâche");
+                          } finally {
+                            setValidatingTask(false);
+                          }
+                        }}
+                        disabled={validatingTask}
+                      >
+                        <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                        <Text style={styles.btnText}>Valider</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Historique Timeline */}
+                {taskHistory.length > 0 && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.sectionTitle}>Suivi du cycle de validation</Text>
+                    <View style={styles.timelineContainer}>
+                      {taskHistory.map((h, index) => {
+                        const isLast = index === taskHistory.length - 1;
+                        const statusCfg = getStatusMeta(h.nouveau_statut);
+                        return (
+                          <View key={h.id_historique} style={styles.timelineRow}>
+                            <View style={styles.timelineLeft}>
+                              <View style={[styles.timelineDot, { backgroundColor: statusCfg.color }]} />
+                              {!isLast && <View style={styles.timelineLine} />}
+                            </View>
+                            <View style={styles.timelineRight}>
+                              <View style={styles.timelineHeader}>
+                                <Text style={[styles.timelineStatus, { color: statusCfg.color }]}>
+                                  {statusCfg.label.toUpperCase()}
+                                </Text>
+                                <Text style={styles.timelineDate}>
+                                  {new Date(h.date).toLocaleDateString()}
+                                </Text>
+                              </View>
+                              {h.commentaire && (
+                                <Text style={styles.timelineComment}>
+                                  Note : {h.commentaire}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
                 <DocumentSection idTache={selectedTask.id_tache} />
               </ScrollView>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Submission Modal ── */}
+      <Modal
+        visible={submissionVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSubmissionVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalEyebrow}>Finaliser la tâche</Text>
+                <Text style={styles.modalTitle} numberOfLines={2}>
+                  {submissionTask?.titre}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setSubmissionVisible(false)}>
+                <Ionicons name="close" size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+              <View style={styles.detailSection}>
+                <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Preuve de réalisation (obligatoire)</Text>
+                <TextInput
+                  style={[styles.validationInput, { color: theme.textPrimary, borderColor: theme.border, backgroundColor: theme.cardBg }]}
+                  placeholder="Décrivez ce qui a été réalisé..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={proofText}
+                  onChangeText={setProofText}
+                  multiline
+                />
+
+                <Text style={[styles.sectionTitle, { marginTop: 10, marginBottom: 6 }]}>Document justificatif (optionnel)</Text>
+                
+                {proofDoc ? (
+                  <View style={[styles.personRow, { justifyContent: "space-between" }]}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                      <Ionicons name="document-text-outline" size={20} color={theme.accent} />
+                      <Text style={{ color: theme.textPrimary, fontSize: 13 }} numberOfLines={1}>
+                        {proofDoc.nom_original}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={async () => {
+                        try {
+                          await documentService.deleteDocument(proofDoc.id);
+                          setProofDoc(null);
+                        } catch (e) {
+                          console.error(e);
+                          Alert.alert("Erreur", "Impossible de supprimer le document");
+                        }
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.proofDocBtn, { backgroundColor: theme.cardBg, borderColor: theme.border, justifyContent: "center" }]}
+                    onPress={async () => {
+                      try {
+                        const result = await DocumentPicker.getDocumentAsync({
+                          type: "*/*",
+                          copyToCacheDirectory: true,
+                        });
+                        if (result.canceled || !result.assets || result.assets.length === 0) {
+                          return;
+                        }
+                        const asset = result.assets[0];
+                        setSubmittingProof(true);
+                        const uploaded = await documentService.uploadDocument(
+                          asset.uri,
+                          asset.name,
+                          asset.mimeType || "application/octet-stream",
+                          submissionTask?.id_projet,
+                          submissionTask?.id_tache
+                        );
+                        setProofDoc(uploaded);
+                      } catch (error) {
+                        console.error("Error picking document:", error);
+                        Alert.alert("Erreur", "Impossible d'importer le fichier");
+                      } finally {
+                        setSubmittingProof(false);
+                      }
+                    }}
+                    disabled={submittingProof}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={18} color={theme.accent} />
+                    <Text style={{ color: theme.accent, fontSize: 13, fontWeight: "600" }}>
+                      Sélectionner un fichier
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: theme.accent, marginTop: 12 }, (!proofText.trim() || submittingProof) && { opacity: 0.5 }]}
+                onPress={handleConfirmSubmission}
+                disabled={!proofText.trim() || submittingProof}
+              >
+                {submittingProof ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Soumettre pour validation</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Validation Modal ── */}
+      <Modal
+        visible={validationVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setValidationVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalEyebrow}>Valider la tâche</Text>
+                <Text style={styles.modalTitle} numberOfLines={2}>
+                  {validationTask?.titre}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setValidationVisible(false)}>
+                <Ionicons name="close" size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+              <View style={styles.detailSection}>
+                <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Commentaire de validation (optionnel)</Text>
+                <TextInput
+                  style={[styles.validationInput, { color: theme.textPrimary, borderColor: theme.border, backgroundColor: theme.cardBg }]}
+                  placeholder="Saisissez des remarques de validation..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={validationComment}
+                  onChangeText={setValidationComment}
+                  multiline
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: "#10b981", marginTop: 12 }, validatingTask && { opacity: 0.5 }]}
+                onPress={handleConfirmValidation}
+                disabled={validatingTask}
+              >
+                {validatingTask ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Confirmer la validation</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Rejection Modal ── */}
+      <Modal
+        visible={rejectionVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setRejectionVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalEyebrow}>Rejeter la tâche</Text>
+                <Text style={styles.modalTitle} numberOfLines={2}>
+                  {rejectionTask?.titre}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setRejectionVisible(false)}>
+                <Ionicons name="close" size={22} color={theme.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScrollContent}>
+              <View style={styles.detailSection}>
+                <Text style={[styles.sectionTitle, { marginBottom: 6 }]}>Motif du rejet (obligatoire)</Text>
+                <TextInput
+                  style={[styles.validationInput, { color: theme.textPrimary, borderColor: theme.border, backgroundColor: theme.cardBg }]}
+                  placeholder="Expliquez pourquoi la tâche est rejetée..."
+                  placeholderTextColor={theme.textSecondary}
+                  value={rejectionComment}
+                  onChangeText={setRejectionComment}
+                  multiline
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: "#ef4444", marginTop: 12 }, (!rejectionComment.trim() || rejectingTask) && { opacity: 0.5 }]}
+                onPress={handleConfirmRejection}
+                disabled={!rejectionComment.trim() || rejectingTask}
+              >
+                {rejectingTask ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>Confirmer le rejet</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1238,6 +1883,149 @@ const createStyles = (theme: {
     color: theme.textSecondary,
     fontSize: 13,
     fontStyle: "italic",
+  },
+
+  // Validation actions
+  validationInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    minHeight: 60,
+    textAlignVertical: "top",
+    fontSize: 13,
+    marginBottom: 10,
+  },
+  btnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  rejectBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#ef4444",
+  },
+  validateBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: "#10b981",
+  },
+  btnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  
+  // Timeline/history styles
+  timelineContainer: {
+    marginTop: 8,
+    paddingLeft: 4,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  timelineLeft: {
+    alignItems: "center",
+    width: 16,
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    backgroundColor: theme.border,
+    marginVertical: 4,
+  },
+  timelineRight: {
+    flex: 1,
+    paddingBottom: 16,
+    gap: 4,
+  },
+  timelineHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  timelineStatus: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  timelineDate: {
+    color: theme.textSecondary,
+    fontSize: 11,
+  },
+  timelineComment: {
+    color: theme.textPrimary,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  
+  // Tab container for top tabs
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: theme.cardBg,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: theme.accent,
+  },
+  tabButtonText: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  tabButtonTextActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  proofDocBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 4,
+  },
+  submitButton: {
+    height: 44,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 5,
+  },
+  submitButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
   },
 
 });

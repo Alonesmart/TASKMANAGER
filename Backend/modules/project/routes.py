@@ -16,8 +16,6 @@ async def get_admin_or_400(db: AsyncSession, user_id: int) -> models.User:
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Chef de projet introuvable")
-    if user.role != "admin":
-        raise HTTPException(status_code=400, detail="Le chef de projet doit être un administrateur")
     return user
 
 async def user_can_access_project(db: AsyncSession, project: models.Projet, user: models.User) -> bool:
@@ -117,13 +115,16 @@ async def create_project(
 router.add_api_route("", create_project, methods=["POST"], response_model=Schemas.ProjetOut, status_code=status.HTTP_201_CREATED)
 router.add_api_route("/", create_project, methods=["POST"], response_model=Schemas.ProjetOut, status_code=status.HTTP_201_CREATED)
 
-@router.get("/{id_projet}", response_model=Schemas.ProjetOut, dependencies=[Depends(RequireProjectRole(["chef_projet", "collaborateur", "invite_externe"]))])
+@router.get("/{id_projet}", response_model=Schemas.ProjetOut)
 async def get_project(
     id_projet: int,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     """Récupère un projet spécifique par son ID."""
+    from ..invitations.routes import verify_project_role
+    await verify_project_role(db, id_projet, current_user, ["chef_projet", "collaborateur", "invite_externe"])
+
     result = await db.execute(
         select(models.Projet)
         .options(selectinload(models.Projet.equipe))
@@ -137,7 +138,7 @@ async def get_project(
     return project
 
 
-@router.put("/{id_projet}", response_model=Schemas.ProjetOut, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
+@router.put("/{id_projet}", response_model=Schemas.ProjetOut)
 async def update_project(
     id_projet: int,
     project_update: Schemas.ProjetBase,
@@ -145,6 +146,30 @@ async def update_project(
     current_user: models.User = Depends(get_current_user)
 ):
     """Met à jour un projet existant."""
+    # 1. Fetch project to verify creator
+    result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet non trouvé")
+        
+    # 2. Strict check: only the project creator (admin) can update the project
+    if project.id_administrateur != current_user.id:
+        raise HTTPException(status_code=403, detail="Vous n'êtes pas autorisé à modifier ce projet")
+    
+    # 3. Update fields
+    project.titre = project_update.titre
+    project.description = project_update.description
+    project.priorite = project_update.priorite
+    project.statut = project_update.statut
+    project.etat = project_update.etat
+    
+    await db.commit()
+    await db.refresh(project)
+    
+    # 4. Notify members (simplified for this context)
+    return project
+
+
     result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
     project = result.scalar_one_or_none()
     
@@ -161,16 +186,44 @@ async def update_project(
     await db.commit()
     await db.refresh(project)
 
+    # Envoi de notifications aux membres du projet sur modification
+    team_members_res = await db.execute(
+        select(models.Appartient_Equipe.id_personnel)
+        .join(models.Equipe, models.Equipe.id_equipe == models.Appartient_Equipe.id_equipe)
+        .where(models.Equipe.id_projet == id_projet)
+    )
+    team_member_ids = team_members_res.scalars().all()
+
+    role_members_res = await db.execute(
+        select(models.ProjetMembreRole.id_utilisateur)
+        .where(models.ProjetMembreRole.id_projet == id_projet)
+    )
+    role_member_ids = role_members_res.scalars().all()
+
+    concerned_user_ids = set(team_member_ids) | set(role_member_ids)
+    concerned_user_ids.discard(current_user.id)
+
+    from ..messages.routes import create_and_send_notification
+    for u_id in concerned_user_ids:
+        await create_and_send_notification(
+            db=db,
+            message=f"Le projet '{project.titre}' a été modifié par l'administrateur.",
+            id_utilisateur=u_id
+        )
+
     return project
 
 
-@router.delete("/{id_projet}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(RequireProjectRole(["chef_projet"]))])
+@router.delete("/{id_projet}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     id_projet: int,
     db: AsyncSession = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
     """Supprime un projet existant."""
+    from ..invitations.routes import verify_project_role
+    await verify_project_role(db, id_projet, current_user, ["chef_projet"])
+
     result = await db.execute(select(models.Projet).filter(models.Projet.id_projet == id_projet))
     db_project = result.scalar_one_or_none()
     if not db_project:

@@ -11,39 +11,47 @@ from ..auth import get_current_user
 
 router = APIRouter(tags=["Invitations & Rôles"])
 
-# Helper to verify project role (admin bypass)
+# Helper to verify project role
 async def verify_project_role(db: AsyncSession, id_projet: int, user: models.User, allowed_roles: List[str]):
+    print(f"DEBUG: verify_project_role id_projet={id_projet} user.id={user.id} user.role={user.role} allowed_roles={allowed_roles}")
     project_res = await db.execute(select(models.Projet).where(models.Projet.id_projet == id_projet))
     project = project_res.scalar_one_or_none()
-    if project and project.id_administrateur == user.id:
-        return "chef_projet"
-        
-    role_res = await db.execute(
-        select(models.ProjetMembreRole.role)
-        .where(
-            models.ProjetMembreRole.id_projet == id_projet,
-            models.ProjetMembreRole.id_utilisateur == user.id
-        )
-    )
-    role = role_res.scalar_one_or_none()
-    if not role:
-        # Check team membership
-        team_res = await db.execute(select(models.Equipe).filter(models.Equipe.id_projet == id_projet))
-        team = team_res.scalar_one_or_none()
-        if team:
-            member_res = await db.execute(
-                select(models.Appartient_Equipe).filter(
-                    models.Appartient_Equipe.id_equipe == team.id_equipe,
-                    models.Appartient_Equipe.id_personnel == user.id,
-                )
+    if not project:
+        return None
+
+    role = None
+
+    # 1. Check if user is the creator
+    if project.id_administrateur == user.id:
+        role = "chef_projet"
+    else:
+        # 2. Check project roles table
+        role_res = await db.execute(
+            select(models.ProjetMembreRole.role)
+            .where(
+                models.ProjetMembreRole.id_projet == id_projet,
+                models.ProjetMembreRole.id_utilisateur == user.id
             )
-            if member_res.scalar_one_or_none() is not None:
-                role = "collaborateur"
+        )
+        role = role_res.scalar_one_or_none()
+    
+        # 3. Check team membership if no role
+        if not role:
+            team_res = await db.execute(select(models.Equipe).filter(models.Equipe.id_projet == id_projet))
+            team = team_res.scalar_one_or_none()
+            if team:
+                member_res = await db.execute(
+                    select(models.Appartient_Equipe).filter(
+                        models.Appartient_Equipe.id_equipe == team.id_equipe,
+                        models.Appartient_Equipe.id_personnel == user.id,
+                    )
+                )
+                if member_res.scalar_one_or_none() is not None:
+                    role = "collaborateur"
 
-    if not role and user.role == "admin":
-        role = "admin"
-
-    if not role or (role not in allowed_roles and "admin" not in allowed_roles):
+    print(f"DEBUG: role found={role}")
+    if not role or role not in allowed_roles:
+        print(f"DEBUG: Access denied.")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Accès refusé : rôle insuffisant sur ce projet"

@@ -30,7 +30,7 @@ SessionLocal = async_sessionmaker(
 SECRET_KEY = os.getenv("SECRET_KEY", "changez_cette_cle_en_production_!!!")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-MAX_TENTATIVES = int(os.getenv("MAX_TENTATIVES", "10"))
+MAX_TENTATIVES = int(os.getenv("MAX_TENTATIVES", "20"))
 
 # ─── Hachage des mots de passe ─────────────────────────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

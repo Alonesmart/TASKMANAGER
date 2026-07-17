@@ -11,45 +11,15 @@ TEST_ADMIN_EMAIL = "test_notif_admin@taskmanager.com"
 TEST_USER_EMAIL = "test_notif_user@taskmanager.com"
 
 async def clean_db(db):
-    emails = [TEST_ADMIN_EMAIL, TEST_USER_EMAIL]
-
-    for email in emails:
-        # Clean notifications
-        await db.execute(text("""
-            DELETE FROM notifications 
-            WHERE id_utilisateur IN (SELECT id FROM users WHERE email = :email)
-        """), {"email": email})
-
-        # Clean comments
-        await db.execute(text("""
-            DELETE FROM commentaires 
-            WHERE id_personnel IN (SELECT id FROM users WHERE email = :email)
-        """), {"email": email})
-
-        # Clean assignations
-        await db.execute(text("""
-            DELETE FROM tache_assignations 
-            WHERE id_utilisateur IN (SELECT id FROM users WHERE email = :email)
-        """), {"email": email})
-
-        # Clean tasks
-        await db.execute(text("""
-            DELETE FROM taches 
-            WHERE id_projet IN (
-                SELECT id_projet FROM projets WHERE id_administrateur IN (
-                    SELECT id FROM users WHERE email = :email
-                )
-            )
-        """), {"email": email})
-
-        # Clean projects
-        await db.execute(text("DELETE FROM projets WHERE id_administrateur IN (SELECT id FROM users WHERE email = :email)"), {"email": email})
-
-        # Clean users
-        await db.execute(text("DELETE FROM personnels WHERE id IN (SELECT id FROM users WHERE email = :email)"), {"email": email})
-        await db.execute(text("DELETE FROM administrateurs WHERE id IN (SELECT id FROM users WHERE email = :email)"), {"email": email})
-        await db.execute(text("DELETE FROM users WHERE email = :email"), {"email": email})
-
+    # Suppression de TOUTES les notifications pour garantir un environnement propre
+    await db.execute(text("DELETE FROM notifications"))
+    await db.execute(text("DELETE FROM commentaires"))
+    await db.execute(text("DELETE FROM tache_assignations"))
+    await db.execute(text("DELETE FROM taches"))
+    await db.execute(text("DELETE FROM projets"))
+    await db.execute(text("DELETE FROM administrateurs"))
+    await db.execute(text("DELETE FROM personnels"))
+    await db.execute(text("DELETE FROM users"))
     await db.commit()
 
 async def test_notifications():
@@ -81,6 +51,9 @@ async def test_notifications():
         db.add(project)
         await db.flush()
         project_id = project.id_projet
+        
+        # Ajouter l'utilisateur comme collaborateur
+        db.add(models.ProjetMembreRole(id_projet=project_id, id_utilisateur=user_id, role="collaborateur"))
         await db.commit()
 
     print("4. Création d'une tâche avec assignation...")

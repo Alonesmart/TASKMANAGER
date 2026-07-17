@@ -45,6 +45,7 @@ class WebSocketService {
 
     return new Promise((resolve, reject) => {
       try {
+        console.log(`[WebSocket] Attempting connection to: ${wsUrl}`);
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
@@ -64,10 +65,11 @@ class WebSocketService {
         };
 
         this.ws.onerror = (e) => {
-          console.error('[WebSocket] Error:', e);
+          console.error('[WebSocket] Error event:', e);
           reject(e);
         };
       } catch (error) {
+        console.error('[WebSocket] Error before open:', error);
         reject(error);
       }
     });
@@ -97,6 +99,14 @@ class WebSocketService {
 
   isConnected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  send(message: any): void {
+    if (this.ws && this.isConnected()) {
+      this.ws.send(JSON.stringify(message));
+    } else {
+      console.warn('[WebSocket] Cannot send message, WebSocket is not connected');
+    }
   }
 }
 

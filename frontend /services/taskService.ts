@@ -2,6 +2,16 @@ import apiClient from './apiClient';
 import type { Project } from './projectService';
 import type { User } from './userService';
 
+export interface HistoriqueValidationTache {
+  id_historique: number;
+  id_tache: number;
+  ancien_statut: string;
+  nouveau_statut: string;
+  id_acteur: number;
+  date: string;
+  commentaire: string | null;
+}
+
 export interface Task {
   id_tache: number;
   titre: string;
@@ -14,6 +24,11 @@ export interface Task {
   id_projet: number;
   projet?: Project | null;
   assigned_users?: User[];
+  preuve_texte?: string | null;
+  id_document_preuve?: number | null;
+  commentaire_rejet?: string | null;
+  historique_validation?: HistoriqueValidationTache[];
+  dependencies?: any[];
 }
 
 export interface TaskPayload {
@@ -83,5 +98,34 @@ export const taskService = {
 
   async deleteTask(idTache: number): Promise<void> {
     await apiClient.delete(`/api/v1/core/taches/${idTache}`);
+  },
+
+  async soumettreTacheTerminee(idTache: number, submission: { preuve_texte?: string | null; id_document_preuve?: number | null }): Promise<Task> {
+    const response = await apiClient.put(`/api/v1/core/taches/${idTache}/soumettre-terminee`, submission);
+    return {
+      ...response.data,
+      assigned_users: response.data.assigned_users ?? [],
+    };
+  },
+
+  async validerTache(idTache: number, validation: { commentaire?: string | null }): Promise<Task> {
+    const response = await apiClient.put(`/api/v1/core/taches/${idTache}/valider`, validation);
+    return {
+      ...response.data,
+      assigned_users: response.data.assigned_users ?? [],
+    };
+  },
+
+  async rejeterTache(idTache: number, validation: { commentaire: string }): Promise<Task> {
+    const response = await apiClient.put(`/api/v1/core/taches/${idTache}/rejeter`, validation);
+    return {
+      ...response.data,
+      assigned_users: response.data.assigned_users ?? [],
+    };
+  },
+
+  async getHistoriqueValidationTache(idTache: number): Promise<HistoriqueValidationTache[]> {
+    const response = await apiClient.get(`/api/v1/core/taches/${idTache}/historique-validation`);
+    return response.data;
   },
 };

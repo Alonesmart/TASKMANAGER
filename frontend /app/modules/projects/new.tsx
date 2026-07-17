@@ -430,7 +430,7 @@ const formatDateForAPI = (d: Date | null) => {
               />
 
               <ScrollView style={{ maxHeight: 300 }}>
-                {filteredAdmins.map((c) => (
+                {filteredUsers.map((c) => (
                   <TouchableOpacity
                     key={c.id}
                     style={[styles.listModalItem, chef?.id === c.id && styles.listModalItemActive]}

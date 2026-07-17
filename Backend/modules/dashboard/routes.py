@@ -19,7 +19,7 @@ async def get_global_dashboard(
     """
     # 1. Projets actifs
     projects_query = (
-        select(func.count(models.Projet.id_projet))
+        select(func.count(models.Projet.id_projet.distinct()))
         .outerjoin(models.Equipe)
         .outerjoin(models.Appartient_Equipe)
         .where(

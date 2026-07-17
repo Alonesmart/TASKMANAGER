@@ -2,6 +2,7 @@ import { projectService } from "@/services/projectService";
 import { userService } from "@/services/userService";
 import { homeService } from "@/services/homeService";
 import { messageService } from "@/services/messageService";
+import { reportService, type ReportStats } from "@/services/reportService";
 import { AppTheme, useAppTheme } from "@/theme";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -230,6 +231,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{nom: string, role: string} | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [reportStats, setReportStats] = useState<ReportStats | null>(null);
+  const [isManagerOrAdmin, setIsManagerOrAdmin] = useState(false);
   const [stats, setStats] = useState({
     activeProjects: 0,
     myTasks: 0,
@@ -260,6 +263,20 @@ export default function Home() {
       const curUser = await userService.getCurrentUser();
       const countRes = await messageService.getUnreadNotificationsCount(curUser.id);
       setUnreadCount(countRes.count);
+
+      // Fetch report statistics for managers/admins
+      const projects = await projectService.getProjects();
+      const isMgr = projects.some(p => p.id_administrateur === curUser.id) || curUser.role === "admin";
+      setIsManagerOrAdmin(isMgr);
+      
+      if (isMgr) {
+        try {
+          const repStats = await reportService.getReportStats();
+          setReportStats(repStats);
+        } catch (e) {
+          console.log("Failed to fetch report stats:", e);
+        }
+      }
     } catch (error) {
       console.error('Error fetching home data:', error);
     } finally {
@@ -268,7 +285,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const init = async () => { // Renamed to init for clarity
+    const init = async () => {
       setLoading(true);
       try {
         const userData = await userService.getCurrentUser();
@@ -428,6 +445,64 @@ export default function Home() {
               </View>
             </View>
           </AnimatedCard>
+
+          {/* ── Report Stats Dashboard Card (pour les managers/admins) ── */}
+          {isManagerOrAdmin && reportStats && (
+            <AnimatedCard delay={280}>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Suivi des Rapports</Text>
+                <View style={styles.reportStatsWidgetCard}>
+                  <View style={styles.statsSummaryRow}>
+                    <View style={styles.summaryStatItem}>
+                      <Text style={[styles.summaryStatVal, { color: T.orange }]}>{reportStats.soumis}</Text>
+                      <Text style={styles.summaryStatLabel}>En attente</Text>
+                    </View>
+                    <View style={styles.summaryStatItem}>
+                      <Text style={[styles.summaryStatVal, { color: T.green }]}>{reportStats.valide}</Text>
+                      <Text style={styles.summaryStatLabel}>Validés</Text>
+                    </View>
+                    <View style={styles.summaryStatItem}>
+                      <Text style={[styles.summaryStatVal, { color: T.red }]}>{reportStats.rejete}</Text>
+                      <Text style={styles.summaryStatLabel}>Rejetés</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.statsDetailsDivider} />
+
+                  <View style={styles.statsDelayRow}>
+                    <Ionicons name="time-outline" size={16} color={T.accent} />
+                    <Text style={styles.statsDelayText}>
+                      Délai moyen de validation : <Text style={{ fontWeight: "700", color: T.textPrimary }}>{reportStats.delai_moyen_validation_heures}h</Text>
+                    </Text>
+                  </View>
+
+                  {reportStats.projets_stats.length > 0 && (
+                    <>
+                      <View style={styles.statsDetailsDivider} />
+                      <Text style={styles.projectBreakdownTitle}>Par Projet</Text>
+                      {reportStats.projets_stats.map((proj) => (
+                        <View key={proj.id_projet} style={styles.projectBreakdownRow}>
+                          <Text style={styles.projectBreakdownName} numberOfLines={1}>
+                            {proj.titre_projet}
+                          </Text>
+                          <View style={styles.projectBreakdownStats}>
+                            {proj.en_attente > 0 && (
+                              <View style={[styles.projectStatBadge, { backgroundColor: T.orange + "22", borderColor: T.orange }]}>
+                                <Text style={[styles.projectStatBadgeText, { color: T.orange }]}>{proj.en_attente} à valider</Text>
+                              </View>
+                            )}
+                            <View style={[styles.projectStatBadge, { backgroundColor: T.green + "22", borderColor: T.green }]}>
+                              <Text style={[styles.projectStatBadgeText, { color: T.green }]}>{proj.valide} validés</Text>
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                </View>
+              </View>
+            </AnimatedCard>
+          )}
 
           {/* ── Recent Tasks ── */}
           <AnimatedCard delay={320}>
@@ -711,4 +786,81 @@ const createStyles = (T: HomePalette) => StyleSheet.create({
   },
   emptyBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 
+  // Report Stats Widget styles
+  reportStatsWidgetCard: {
+    backgroundColor: T.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: T.cardBorder,
+    padding: 16,
+  },
+  statsSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  summaryStatItem: {
+    alignItems: "center",
+    gap: 4,
+  },
+  summaryStatVal: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  summaryStatLabel: {
+    fontSize: 11,
+    color: T.textSecondary,
+    fontWeight: "600",
+  },
+  statsDetailsDivider: {
+    height: 1,
+    backgroundColor: T.cardBorder,
+    marginVertical: 12,
+    opacity: 0.5,
+  },
+  statsDelayRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  statsDelayText: {
+    fontSize: 13,
+    color: T.textSecondary,
+  },
+  projectBreakdownTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: T.textSecondary,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  projectBreakdownRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  projectBreakdownName: {
+    fontSize: 13,
+    color: T.textPrimary,
+    fontWeight: "600",
+    flex: 1,
+    marginRight: 10,
+  },
+  projectBreakdownStats: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  projectStatBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  projectStatBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
 });

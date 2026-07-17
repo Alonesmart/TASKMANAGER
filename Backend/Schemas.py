@@ -20,6 +20,8 @@ class UserResponse(UserBase):
     id: int
     role: str
     actif: bool
+    en_ligne: bool = False
+    derniere_connexion: Optional[datetime] = None
     class Config:
         from_attributes = True
 
@@ -115,8 +117,30 @@ class TacheOut(TacheBase):
     id_tache: int
     projet: Optional[ProjetOut] = None
     assigned_users: List[TacheAssignedUser] = Field(default_factory=list)
+    preuve_texte: Optional[str] = None
+    id_document_preuve: Optional[int] = None
+    commentaire_rejet: Optional[str] = None
+    historique_validation: List["HistoriqueValidationTacheOut"] = Field(default_factory=list)
     class Config:
         from_attributes = True
+
+class HistoriqueValidationTacheOut(BaseModel):
+    id_historique: int
+    id_tache: int
+    ancien_statut: str
+    nouveau_statut: str
+    id_acteur: int
+    date: datetime
+    commentaire: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class TacheValidation(BaseModel):
+    commentaire: Optional[str] = None
+
+class TacheSubmission(BaseModel):
+    preuve_texte: Optional[str] = None
+    id_document_preuve: Optional[int] = None
 
 # --- Commentaire Schemas ---
 class CommentaireBase(BaseModel):
@@ -175,13 +199,32 @@ class RapportBase(BaseModel):
     id_projet: int
 
 class RapportCreate(RapportBase):
-    pass
+    id_tache: Optional[int] = None
+
+class HistoriqueRapportOut(BaseModel):
+    id_historique: int
+    id_rapport: int
+    ancien_statut: str
+    nouveau_statut: str
+    id_acteur: int
+    date: datetime
+    commentaire: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+class RapportValidation(BaseModel):
+    commentaire: Optional[str] = None
 
 class RapportOut(RapportBase):
     id_rapport: int
     statut: str
     date_generation: datetime
+    date_soumission: Optional[datetime] = None
+    date_validation: Optional[datetime] = None
+    commentaire_validation: Optional[str] = None
     id_personnel: int
+    id_tache: Optional[int] = None
+    historique: Optional[List[HistoriqueRapportOut]] = None
     class Config:
         from_attributes = True
 
@@ -189,24 +232,57 @@ class RapportOut(RapportBase):
 class ConversationBase(BaseModel):
     nom: Optional[str] = Field(None, max_length=100)
     type: str = Field("direct", max_length=50)  # 'direct' or 'groupe'
+    id_admin: Optional[int] = None
+    avatar: Optional[str] = None
 
 class ConversationCreate(ConversationBase):
     participant_ids: List[int]
 
+class UserMinOut(BaseModel):
+    id: int
+    nom: str
+    email: str
+    role: str
+    en_ligne: bool = False
+    derniere_connexion: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+class ConversationParticipantOut(BaseModel):
+    id_utilisateur: int
+    utilisateur: UserMinOut
+    class Config:
+        from_attributes = True
+
+class LastMessageMinOut(BaseModel):
+    contenu: str
+    date_envoi: datetime
+    id_expediteur: int
+    statut: str
+    class Config:
+        from_attributes = True
+
 class ConversationOut(ConversationBase):
     id_conversation: int
     date_creation: datetime
+    participants: List[ConversationParticipantOut] = []
+    last_message: Optional[LastMessageMinOut] = None
+    unread_count: int = 0
     class Config:
         from_attributes = True
 
 class ConversationParticipantCreate(BaseModel):
     id_utilisateur: int
 
-class ConversationParticipantOut(BaseModel):
-    id_conversation: int
-    id_utilisateur: int
-    class Config:
-        from_attributes = True
+class ConversationUpdate(BaseModel):
+    nom: Optional[str] = None
+    avatar: Optional[str] = None
+
+class GroupParticipantsUpdate(BaseModel):
+    participant_ids: List[int]
+
+class GroupAdminUpdate(BaseModel):
+    id_admin: int
 
 class MessageBase(BaseModel):
     contenu: str
@@ -218,9 +294,15 @@ class MessageBase(BaseModel):
 class MessageCreate(MessageBase):
     pass
 
+class MessageUpdate(BaseModel):
+    contenu: str
+
 class MessageRead(MessageBase):
     id_message: int
     date_envoi: datetime
+    lu: bool
+    statut: str
+    expediteur: Optional[UserMinOut] = None
     class Config:
         from_attributes = True
 
@@ -229,6 +311,8 @@ class NotificationBase(BaseModel):
     id_utilisateur: int
     message: str
     lu: bool = False
+    id_tache: Optional[int] = None
+    id_conversation: Optional[int] = None
 
 class NotificationCreate(NotificationBase):
     pass

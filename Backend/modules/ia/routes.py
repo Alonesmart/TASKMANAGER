@@ -162,6 +162,8 @@ async def repartir_taches(
     # Count current active tasks per member
     workload = {}
     for m in members:
+        if m is None:
+            continue
         # Count active tasks (not terminées) assigned to this user
         count_res = await db.execute(
             select(func.count(models.TacheAssignation.id_tache))

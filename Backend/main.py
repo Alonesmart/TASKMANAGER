@@ -12,6 +12,7 @@ from .modules.documents import routes as documents_routes
 from .modules.invitations import routes as invitations_routes
 from .modules.reunions import routes as reunions_routes
 from .modules.ia import routes as ia_routes
+from .modules.google import routes as google_routes
 from .scheduler import start_scheduler, stop_scheduler
 
 @asynccontextmanager
@@ -37,4 +38,5 @@ app.include_router(documents_routes.router)
 app.include_router(invitations_routes.router)
 app.include_router(reunions_routes.router)
 app.include_router(ia_routes.router)
+app.include_router(google_routes.router)
 

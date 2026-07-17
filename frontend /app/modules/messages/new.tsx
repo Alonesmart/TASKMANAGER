@@ -146,7 +146,6 @@ export default function NewMessageScreen() {
   const colors = useMemo(() => createMessageColors(theme), [theme]);
   const styles = useMemo(() => createStyles(colors), [colors]);
   const [search, setSearch] = useState("");
-  const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [recipients, setRecipients] = useState<User[]>([]);
   const [contacts, setContacts] = useState<User[]>([]);
@@ -209,7 +208,7 @@ export default function NewMessageScreen() {
 
     try {
       const conv = await conversationService.createConversation({
-        nom: subject,
+        nom: recipients.length > 1 ? recipients.map((r) => r.nom).join(', ') : (recipients[0]?.nom || 'Discussion'),
         type: recipients.length > 1 ? 'groupe' : 'direct',
         participant_ids: [...recipients.map((r) => r.id)],
       });
@@ -306,7 +305,7 @@ export default function NewMessageScreen() {
     setAttachments((prev) => prev.filter((file) => file.id !== id));
   };
 
-  const canSend = recipients.length > 0 && subject.trim().length > 0 && body.trim().length > 0;
+  const canSend = recipients.length > 0 && body.trim().length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -473,21 +472,6 @@ export default function NewMessageScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            {/* Subject */}
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Objet</Text>
-              <TextInput
-                style={styles.subjectInput}
-                placeholder="Titre du message..."
-                placeholderTextColor={colors.textSecondary}
-                value={subject}
-                onChangeText={setSubject}
-                maxLength={80}
-              />
             </View>
 
             <View style={styles.divider} />

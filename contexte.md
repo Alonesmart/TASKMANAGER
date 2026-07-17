@@ -70,9 +70,9 @@ Les tables sont définies en utilisant l'ORM asynchrone moderne de SQLAlchemy :
 7. **Rapports (`rapports`)** : titre, contenu, type, periode, statut (pending/valide/rejete), date_generation, id_projet, id_personnel.
 8. **Commentaires (`commentaires`)** : contenu, date_creation, id_tache, id_personnel.
 9. **Messagerie (`conversations` & `messages`)** :
-   * `Conversation` (nom, type : direct/groupe).
+   * `Conversation` (nom, type : direct/groupe, id_admin: FK admin, avatar).
    * `ConversationParticipant` (liaison conversation et utilisateurs).
-   * `Message` (contenu, date_envoi, lu, id_expediteur, id_conversation).
+   * `Message` (contenu, date_envoi, lu, statut : envoye/distribue/lu, id_expediteur, id_conversation).
 10. **Notifications (`notifications`)** : message, lu, date_envoi, id_utilisateur, id_tache.
 11. **Sécurité (`reset_tokens`)** : jetons temporaires de réinitialisation de mot de passe (token, user_id, expires_at, used).
 12. **Gestion Documentaire (`documents`)** : nom_original, nom_stocke, type_mime, taille, chemin, id_projet (nullable, FK), id_tache (nullable, FK), id_uploader (FK), date_upload.
@@ -97,7 +97,7 @@ Toutes les routes principales sont documentées et prêtes à l'emploi.
 
 ### 📁 3. Cœur des Projets (`/api/v1/core/projets`)
 * **Lister les projets (`GET /`)** : Récupère les projets visibles par l'utilisateur connecté (projets supervisés si admin, ou projets dont son équipe fait partie si personnel).
-* **Créer (`POST /`)** : Création de projet réservée aux administrateurs.
+* **Créer (`POST /`)** : Création de projet réservée aux administrateurs. Le chef de projet désigné (`id_administrateur`) peut être n'importe quel utilisateur (admin ou personnel) du système.
 * **Détails, Edition, Suppression (`GET`, `PUT`, `DELETE` sur `/{id_projet}`)** : Gestion complète du cycle de vie du projet.
 
 ### 📋 4. Gestion des Tâches (`/api/v1/core/taches`)
@@ -105,25 +105,46 @@ Toutes les routes principales sont documentées et prêtes à l'emploi.
 * **Créer (`POST /`)** : Création d'une tâche avec assignation directe à plusieurs collaborateurs.
 * **Mettre à jour (`PUT /{id_tache}`)** : Modification de la progression, du statut (`a_faire`, `en_cours`, `terminees`) et des personnes assignées.
 * **Commenter (`POST /{id_tache}/commentaires`)** : Ajout de remarques de suivi sur la tâche.
+* **Soumettre pour validation (`PUT /{id_tache}/soumettre-terminee`)** : Permet à un collaborateur assigné de soumettre une tâche comme terminée en fournissant une preuve textuelle et un document facultatif. Le statut devient `"terminee_en_attente"`.
+* **Valider la tâche (`PUT /{id_tache}/valider`)** : Permet au chef de projet ou administrateur de valider la réalisation de la tâche. Met la progression à 100% et le statut à `"terminees"`.
+* **Rejeter la tâche (`PUT /{id_tache}/rejeter`)** : Permet de rejeter la tâche avec un commentaire explicatif obligatoire. Le statut repasse à `"en_cours"`.
+* **Historique de validation (`GET /{id_tache}/historique-validation`)** : Permet de consulter la traçabilité complète de validation de la tâche.
 * **Planification visuelle (Kanban & Calendrier)** :
-  * *Vue Liste* : Liste classique filtrable par projet ou priorité.
-  * *Vue Kanban* : Organisation en 3 colonnes de statut (`À faire`, `En cours`, `Terminée`) avec flèches de transfert rapide.
+  * *Vue Liste* : Liste classique filtrable par projet ou priorité. Intègre un filtre de statut `"terminee_en_attente"` ("À valider").
+  * *Vue Kanban* : Organisation en 4 colonnes de statut (`À faire`, `En cours`, `À valider`, `Terminée`) avec flèches de transfert rapide et déclenchement des fenêtres de validation/soumission correspondantes.
   * *Vue Calendrier* : Grille mensuelle avec pastilles de couleur selon la priorité des tâches prévues, et liste détaillée du jour sélectionné.
-  * *Dépendances* : Règle métier bloquant la complétion d'une tâche si ses dépendances préalables ne sont pas finalisées, et visualisation des dépendances dans la fiche de détails.
+  * *Dépendances* : Règle métier bloquant la complétion ou la soumission d'une tâche si ses dépendances préalables ne sont pas validées/finalisées, et visualisation des dépendances dans la fiche de détails.
+
+#### Matrice des Droits du Circuit de Validation des Tâches :
+| Action | Rôles Autorisés | Statut Autorisé de la Tâche | Description |
+|---|---|---|---|
+| **Créer/Modifier une tâche** | Chef de Projet / Admin | Tous | Création ou modification globale de la tâche. |
+| **Commenter / Mettre à jour progression** | Assigné / Chef de Projet / Admin | `a_faire`, `en_cours`, `terminee_en_attente` | Les collaborateurs assignés peuvent actualiser la progression et ajouter des commentaires. |
+| **Soumettre pour validation** | Collaborateur Assigné / Chef / Admin | `a_faire`, `en_cours`, `terminee_en_attente` | Fait passer le statut à `"terminee_en_attente"` (preuve obligatoire). |
+| **Valider la tâche** | Chef de Projet / Administrateur | `"terminee_en_attente"` | Clôture la tâche, statut `"terminees"`, progression à 100%. |
+| **Rejeter la tâche** | Chef de Projet / Administrateur | `"terminee_en_attente"` | Renvoie la tâche en statut `"en_cours"` (motif/commentaire obligatoire). |
+| **Consulter l'historique** | Membres du Projet / Admin | Tous | Visualisation du cycle de validation de la tâche. |
 
 ### 👥 5. Gestion des Équipes (`/api/v1/core/equipes`)
 * **Créer une équipe (`POST /`)** : Associe une équipe à un projet spécifique.
 * **Gestion des membres (`POST`, `DELETE`, `PUT`, `GET` sur `/{id_equipe}/membres`)** : Ajout, suppression et listage des membres d'une équipe.
 
 ### 💬 6. Messagerie, Alertes & Notifications (`/api/v1/comm`)
-* **Websocket Temps Réel (`WS /ws/{user_id}`)** : Connexion temps réel pour pousser les messages et notifications instantanément.
+* **Websocket Temps Réel (`WS /ws/{user_id}`)** : Connexion temps réel pour pousser les messages et notifications instantanément (avec statuts des messages et de frappe).
 * **Conversations (`POST /conversations` & `GET /conversations/me`)** : Création et récupération de salons de discussions directs ou de groupe.
-* **Messages (`POST /messages` & `GET /conversations/{id_conversation}/messages`)** : Envoi de messages et consultation de l'historique d'un salon.
+* **Gestion des Groupes** :
+  * *Edition* : `PUT /conversations/{id_conversation}` (modification du nom, avatar par l'admin).
+  * *Ajout membres* : `POST /conversations/{id_conversation}/participants` (ajout par l'admin).
+  * *Retrait / Départ* : `DELETE /conversations/{id_conversation}/participants/{id_utilisateur}` (retrait par l'admin ou départ du groupe).
+  * *Changement Admin* : `PUT /conversations/{id_conversation}/admin` (désigner un nouvel admin).
+* **Messages (`POST /messages` & `GET /conversations/{id_conversation}/messages`)** : Envoi de messages et consultation de l'historique d'un salon (avec statut envoyé/distribué/lu et détails de l'expéditeur).
 * **Notifications (`GET /notifications/...`)** : Récupération des notifications, comptage des messages non-lus et marquage comme lus.
 * **Notifications Automatiques & Temps Réel** : Système de génération automatique de notifications (enregistrées en base de données SQLite et poussées instantanément via WebSocket) sur événements :
   * *Attribution de tâche* : `"Vous avez été assigné à la tâche '{titre}'."`
   * *Changement de statut* : `"Le statut de la tâche '{titre}' a été modifié en '{nouveau_statut}'."`
   * *Nouveau commentaire* : `"{nom_auteur} a commenté la tâche '{titre}'."`
+  * *Modification de projet* : `"Le projet '{titre}' a été modifié par l'administrateur."` (notifie tous les collaborateurs et membres de l'équipe du projet).
+  * *Modification de tâche* : `"La tâche '{titre}' a été modifiée par l'administrateur."` (notifie tous les collaborateurs assignés).
 * **Planificateur de Tâches (`APScheduler`)** : Démon d'arrière-plan intégré au cycle de vie (`lifespan`) de FastAPI. Il effectue une vérification horaire de toutes les tâches actives non-terminées et génère un rappel automatique aux assignés 48 heures puis 24 heures avant l'échéance (avec sécurité anti-doublon).
 * **Interface Frontend (Écran `NotificationsScreen`)** : Affichage d'une liste premium des notifications triées par date de réception. Comprend des badges numériques d'inédits, des icônes spécifiques par type d'événement (Horloge pour échéance, Bulle pour commentaire, Profil pour attribution) et une option de marquage globale/individuel comme lu.
 
@@ -131,10 +152,25 @@ Toutes les routes principales sont documentées et prêtes à l'emploi.
 * **Données globales (`GET /global`)** : Calcule le nombre de projets actifs, le volume de tâches, les tâches urgentes/en retard et le taux de progression moyen global de l'utilisateur.
 
 ### 📊 8. Rapports d'Activité (`/api/v1/reports`)
-* **Soumettre (`POST /`)** : Permet au personnel de soumettre un rapport sur un projet.
-* **Mes rapports (`GET /my-reports`)** : Historique personnel des rapports.
-* **Validation (`PUT /{id_rapport}/statut`)** : Permet aux administrateurs de valider ou rejeter un rapport.
-* **Export PDF (`GET /{id_rapport}/export-pdf`)** : Génération en mémoire et téléchargement de documents PDF structurés via ReportLab (avec en-tête projet, métadonnées formatées et contenu). Sécurisé par contrôle d'accès au projet.
+* **Créer / Modifier (`POST /` & `PUT /{id_rapport}`)** : Permet au personnel de créer et modifier ses rapports sous forme de `"brouillon"` tant qu'ils ne sont pas soumis.
+* **Soumettre (`PUT /{id_rapport}/soumettre`)** : Fait passer le rapport du statut `"brouillon"` ou `"rejete"` à `"soumis"` (avec `date_soumission`).
+* **Lister les miens (`GET /my-reports`)** : Historique personnel des rapports d'un utilisateur.
+* **Rapports à valider (`GET /to-validate`)** : Récupère les rapports soumis en attente de validation pour les projets dont l'utilisateur connecté est responsable (chef de projet ou admin).
+* **Validation & Rejet (`PUT /{id_rapport}/valider` & `PUT /{id_rapport}/rejeter`)** : Permet aux validateurs autorisés de valider (avec date et commentaire facultatif) ou rejeter (avec commentaire de motif obligatoire, remettant le rapport en statut `"rejete"`) un rapport soumis.
+* **Historique des statuts (`GET /{id_rapport}/historique`)** : Renvoie le suivi chronologique complet de validation d'un rapport spécifique.
+* **Export PDF (`GET /{id_rapport}/export-pdf`)** : Téléchargement de documents PDF structurés via ReportLab enrichis avec les nouvelles métadonnées de statut et l'historique complet de validation pour assurer la traçabilité.
+
+#### Matrice des Droits du Circuit de Validation des Rapports :
+| Action | Rôles Autorisés | Statut Autorisé du Rapport | Description |
+|---|---|---|---|
+| **Créer un rapport** | Personnel | N/A | Le rapport est initialement créé sous le statut `"brouillon"`. |
+| **Modifier le rapport** | Auteur (Personnel) | `"brouillon"` ou `"rejete"` | Impossible si déjà soumis ou validé. |
+| **Soumettre le rapport** | Auteur (Personnel) | `"brouillon"` ou `"rejete"` | Fait passer le statut à `"soumis"`. |
+| **Valider le rapport** | Chef de Projet / Administrateur | `"soumis"` | Fait passer le statut à `"valide"`. |
+| **Rejeter le rapport** | Chef de Projet / Administrateur | `"soumis"` | Fait passer le statut à `"rejete"` (commentaire obligatoire). |
+| **Consulter l'historique** | Auteur / Chef de Projet / Admin | Tous | Visualisation du cycle de validation. |
+| **Exporter en PDF** | Membres du Projet / Auteur / Admin | Tous | Exportation avec traçabilité. |
+
 
 ### 📁 9. Gestion Documentaire (`/api/v1/documents`)
 * **Upload (`POST /upload`)** : Importation de fichiers (multipart) liés de manière optionnelle à un projet ou à une tâche, stockage physique dans `Backend/uploads` avec des noms uniques générés via UUID.

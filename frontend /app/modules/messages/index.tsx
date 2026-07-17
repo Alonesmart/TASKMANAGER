@@ -8,7 +8,7 @@ import { useAppTheme } from "@/theme";
 import { userService } from "@/services/userService";
 import { conversationService, type Conversation as BackendConversation } from "@/services/conversationService";
 import AddButton from "../../../components/AddButton";
-import { MessageBubble } from "@/components/MessageBubble";
+import { websocketService } from "@/services/websocketService";
 import { ChatInput } from "../../../components/ChatInput";
 import { KeyboardAvoidingView } from "react-native";
 
@@ -168,42 +168,140 @@ export default function Messages() {
 
   // ── Fetch ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (!isFocused) return;
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [user, convs] = await Promise.all([
+        userService.getCurrentUser(),
+        conversationService.getMyConversations(),
+      ]);
+      
+      setIsAdmin(user?.role === "admin");
+      
+      const mappedConvs: Conversation[] = convs.map(c => {
+        let displayName = c.nom || "Discussion";
+        if (c.type === 'direct' && c.participants && user) {
+          const otherParticipant = c.participants.find(p => p.id_utilisateur !== user.id);
+          if (otherParticipant && otherParticipant.utilisateur) {
+            displayName = otherParticipant.utilisateur.nom;
+          }
+        }
 
-    const fetchAll = async () => {
-      setLoading(true);
-      try {
-        const [user, convs] = await Promise.all([
-          userService.getCurrentUser(),
-          conversationService.getMyConversations(),
-        ]);
-        
-        setIsAdmin(user?.role === "admin");
-        
-        // Map backend conversation to frontend Conversation interface
-        const mappedConvs: Conversation[] = convs.map(c => ({
+        let lastMsgText = "";
+        let lastMsgTime = new Date(c.date_creation);
+        let isRead = false;
+        let isDelivered = false;
+
+        // @ts-ignore
+        if (c.last_message) {
+          // @ts-ignore
+          lastMsgText = c.last_message.contenu;
+          // @ts-ignore
+          lastMsgTime = new Date(c.last_message.date_envoi);
+          // @ts-ignore
+          if (c.last_message.id_expediteur === user.id) {
+            // @ts-ignore
+            isRead = c.last_message.statut === "lu";
+            // @ts-ignore
+            isDelivered = c.last_message.statut === "distribue" || c.last_message.statut === "lu";
+          }
+        }
+
+        const timeStr = lastMsgTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        return {
           id: c.id_conversation,
-          name: c.nom || "Discussion",
-          lastMessage: "", // Backend would need to provide this in ConversationOut for a perfect UX
-          time: new Date(c.date_creation).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unreadCount: 0, 
+          name: displayName,
+          lastMessage: lastMsgText,
+          time: timeStr,
+          // @ts-ignore
+          unreadCount: c.unread_count || 0,
           isGroup: c.type === 'groupe',
           isFavorite: false,
-          isRead: true,
-          isDelivered: true,
-        }));
-        
-        setConversations(mappedConvs);
+          isRead: isRead,
+          isDelivered: isDelivered,
+        };
+      });
+      
+      setConversations(mappedConvs);
+    } catch (e) {
+      console.error("Messages fetch error:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isFocused) {
+      fetchAll();
+    }
+  }, [isFocused, fetchAll]);
+
+  // ── WebSocket Live Updates ──
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    
+    const fetchUserAndConnect = async () => {
+      try {
+        const u = await userService.getCurrentUser();
+        if (u) {
+          if (!websocketService.isConnected()) {
+            await websocketService.connect(u.id);
+          }
+          
+          const unsubscribe = websocketService.subscribe((msg) => {
+            if (msg.type === "NEW_MESSAGE") {
+              setConversations((prev) => {
+                const updated = prev.map((c) => {
+                  if (c.id === msg.id_conversation) {
+                    return {
+                      ...c,
+                      lastMessage: msg.contenu!,
+                      time: new Date(msg.date_envoi!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      unreadCount: msg.id_expediteur !== u.id ? c.unreadCount + 1 : c.unreadCount,
+                      isRead: false,
+                      isDelivered: msg.id_expediteur === u.id && (msg.statut === "distribue" || msg.statut === "lu"),
+                    };
+                  }
+                  return c;
+                });
+                
+                const exists = prev.some((c) => c.id === msg.id_conversation);
+                if (!exists) {
+                  fetchAll();
+                }
+                
+                return updated;
+              });
+            } else if (msg.type === "MESSAGE_STATUS_UPDATE") {
+              setConversations((prev) => {
+                return prev.map((c) => {
+                  if (c.id === msg.id_conversation) {
+                    return {
+                      ...c,
+                      isRead: msg.statut === "lu",
+                      isDelivered: msg.statut === "distribue" || msg.statut === "lu",
+                    };
+                  }
+                  return c;
+                });
+              });
+            }
+          });
+          
+          cleanup = unsubscribe;
+        }
       } catch (e) {
-        console.error("Messages fetch error:", e);
-      } finally {
-        setLoading(false);
+        console.error("Error in messages list ws connection:", e);
       }
     };
-
-    fetchAll();
-  }, [isFocused]);
+    
+    fetchUserAndConnect();
+    
+    return () => {
+      if (cleanup) cleanup();
+    };
+  }, [fetchAll]);
 
   // ── Filtering ────────────────────────────────────────────────────────────
 

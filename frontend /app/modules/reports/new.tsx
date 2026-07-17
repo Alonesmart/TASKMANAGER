@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   KeyboardAvoidingView,
@@ -13,9 +13,13 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppTheme } from "@/theme";
+import { reportService } from "@/services/reportService";
+import { projectService, type Project } from "@/services/projectService";
 
 // ─── Thème ────────────────────────────────────────────────────────────────────
 const T = {
@@ -133,20 +137,136 @@ export default function NewReportScreen() {
       description: t("new_report.other_desc"),
     },
   ];
+  const params = useLocalSearchParams<{ id_projet?: string; id_tache?: string; titre_tache?: string; id_rapport?: string }>();
   const { theme, isDark } = useAppTheme();
+  
   const [selectedType, setSelectedType] = useState<string>("progression");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [titleFocused, setTitleFocused] = useState(false);
   const [contentFocused, setContentFocused] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  // Projets
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
+    params.id_projet ? Number(params.id_projet) : null
+  );
+  const [loadingProjects, setLoadingProjects] = useState(false);
+
+  useEffect(() => {
+    if (params.id_tache) {
+      setSelectedType("completion");
+      setTitle(params.titre_tache ? `Rapport : ${params.titre_tache}` : "");
+      setContent(`Rapport de complétion pour la tâche "${params.titre_tache || ""}" (ID: ${params.id_tache}).\n\nTravail réalisé : `);
+    }
+    if (params.id_projet) {
+      setSelectedProjectId(Number(params.id_projet));
+    }
+  }, [params.id_projet, params.id_tache, params.titre_tache]);
+
+  useEffect(() => {
+    if (params.id_rapport) {
+      const loadReport = async () => {
+        try {
+          const rep = await reportService.getReportDetails(Number(params.id_rapport));
+          setTitle(rep.titre);
+          setContent(rep.contenu);
+          setSelectedType(rep.type);
+          setSelectedProjectId(rep.id_projet);
+        } catch (e) {
+          console.error("Failed to load report for editing:", e);
+          Alert.alert("Erreur", "Impossible de charger les détails du rapport.");
+        }
+      };
+      loadReport();
+    }
+  }, [params.id_rapport]);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      setLoadingProjects(true);
+      try {
+        const data = await projectService.getProjects();
+        setProjects(data);
+        if (!params.id_projet && data.length > 0) {
+          setSelectedProjectId(data[0].id_projet);
+        }
+      } catch (error) {
+        console.error("Error loading projects:", error);
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+    fetchProjects();
+  }, [params.id_projet]);
 
   const activeType = REPORT_TYPES.find((t) => t.id === selectedType);
-  const canSend = title.trim().length > 0 && content.trim().length > 0;
+  const canSend = title.trim().length > 0 && content.trim().length > 0 && selectedProjectId !== null;
 
-  const handleSend = () => {
-    if (!canSend) return;
-    console.log({ type: selectedType, title, content });
-    router.back();
+  const handleSaveDraft = async () => {
+    if (!canSend || selectedProjectId === null || saving) return;
+    setSaving(true);
+    try {
+      if (params.id_rapport) {
+        await reportService.updateReport(Number(params.id_rapport), {
+          titre: title,
+          contenu: content,
+          type: selectedType,
+          id_projet: selectedProjectId,
+          id_tache: params.id_tache ? Number(params.id_tache) : null,
+        });
+      } else {
+        await reportService.createReport({
+          titre: title,
+          contenu: content,
+          type: selectedType,
+          id_projet: selectedProjectId,
+          id_tache: params.id_tache ? Number(params.id_tache) : null,
+        });
+      }
+      Alert.alert("Succès", "Rapport enregistré en brouillon.");
+      router.back();
+    } catch (error) {
+      console.error("Error saving report draft:", error);
+      Alert.alert("Erreur", "Impossible d'enregistrer le brouillon.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateAndSubmit = async () => {
+    if (!canSend || selectedProjectId === null || saving) return;
+    setSaving(true);
+    try {
+      let repId = Number(params.id_rapport);
+      if (params.id_rapport) {
+        await reportService.updateReport(repId, {
+          titre: title,
+          contenu: content,
+          type: selectedType,
+          id_projet: selectedProjectId,
+          id_tache: params.id_tache ? Number(params.id_tache) : null,
+        });
+      } else {
+        const created = await reportService.createReport({
+          titre: title,
+          contenu: content,
+          type: selectedType,
+          id_projet: selectedProjectId,
+          id_tache: params.id_tache ? Number(params.id_tache) : null,
+        });
+        repId = created.id_rapport;
+      }
+      await reportService.submitReport(repId);
+      Alert.alert("Succès", "Le rapport a été soumis avec succès !");
+      router.back();
+    } catch (error) {
+      console.error("Error creating and submitting report:", error);
+      Alert.alert("Erreur", "Impossible de soumettre le rapport.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -172,7 +292,9 @@ export default function NewReportScreen() {
           </TouchableOpacity>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>{t("new_report.title")}</Text>
+            <Text style={styles.headerTitle}>
+              {params.id_rapport ? "Modifier le rapport" : t("new_report.title")}
+            </Text>
             <Text style={styles.headerSub}>
               {activeType?.label ?? t("new_report.select_type")}
             </Text>
@@ -181,21 +303,21 @@ export default function NewReportScreen() {
           <TouchableOpacity
             style={[
               styles.sendBtn,
-              canSend
-                ? { backgroundColor: activeType?.color ?? T.accent }
+              canSend && !saving
+                ? { backgroundColor: T.card, borderWidth: 1, borderColor: T.border }
                 : styles.sendBtnDisabled,
             ]}
-            onPress={handleSend}
+            onPress={handleSaveDraft}
             activeOpacity={0.8}
-            disabled={!canSend}
+            disabled={!canSend || saving}
           >
             <Ionicons
-              name="paper-plane"
+              name="save-outline"
               size={15}
-              color={canSend ? "#fff" : T.textMuted}
+              color={canSend && !saving ? T.accent : T.textMuted}
             />
-            <Text style={[styles.sendText, !canSend && { color: T.textMuted }]}>
-              {t("new_report.send")}
+            <Text style={[styles.sendText, { color: canSend && !saving ? T.accent : T.textMuted }]}>
+              Brouillon
             </Text>
           </TouchableOpacity>
         </View>
@@ -222,6 +344,42 @@ export default function NewReportScreen() {
                 />
               ))}
             </View>
+          </View>
+
+          {/* ── Section Projet ── */}
+          <View style={styles.sectionBlock}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.sectionDot, { backgroundColor: activeType?.color ?? T.accent }]} />
+              <Text style={styles.sectionLabel}>{t("new_report.project_section", "PROJET ASSOCIÉ")}</Text>
+            </View>
+
+            {loadingProjects ? (
+              <ActivityIndicator size="small" color={T.accent} style={{ alignSelf: "flex-start", marginVertical: 8 }} />
+            ) : projects.length === 0 ? (
+              <Text style={{ color: T.danger }}>Aucun projet disponible.</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+                {projects.map((p) => {
+                  const isSelected = selectedProjectId === p.id_projet;
+                  return (
+                    <TouchableOpacity
+                      key={p.id_projet}
+                      style={[styles.chip, isSelected && styles.chipActive]}
+                      onPress={() => {
+                        if (!params.id_tache) {
+                          setSelectedProjectId(p.id_projet);
+                        }
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.chipTxt, isSelected && styles.chipTxtActive]}>
+                        {p.titre}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
 
           {/* ── Section Titre ── */}
@@ -311,6 +469,28 @@ export default function NewReportScreen() {
             <View style={styles.completionLine} />
             <CompletionDot done={content.trim().length > 0} label={t("new_report.content_label")} />
           </View>
+
+          {/* Action : Soumettre directement */}
+          {canSend && (
+            <TouchableOpacity
+              style={[
+                styles.submitActionBtn,
+                { backgroundColor: activeType?.color ?? T.accent, marginTop: 28 },
+                saving && { opacity: 0.7 }
+              ]}
+              onPress={handleCreateAndSubmit}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="paper-plane" size={18} color="#fff" />
+                  <Text style={styles.submitActionBtnText}>Soumettre pour validation</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
 
           <View style={{ height: 40 }} />
         </ScrollView>
@@ -473,6 +653,33 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
+  // ── Chips ──
+  chipsScroll: {
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: T.border,
+    marginRight: 8,
+    backgroundColor: T.card,
+  },
+  chipActive: {
+    backgroundColor: T.accent,
+    borderColor: T.accent,
+  },
+  chipTxt: {
+    color: T.textSecondary,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  chipTxtActive: {
+    color: "#fff",
+  },
+
   // ── Inputs ──
   inputWrapper: {
     flexDirection: "row",
@@ -536,5 +743,18 @@ const styles = StyleSheet.create({
     backgroundColor: T.border,
     marginHorizontal: 8,
     marginBottom: 14,
+  },
+  submitActionBtn: {
+    flexDirection: "row",
+    borderRadius: 12,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  submitActionBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
   },
 });

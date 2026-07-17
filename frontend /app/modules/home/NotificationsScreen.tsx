@@ -76,6 +76,17 @@ export default function NotificationsScreen() {
     }
   };
 
+  const handleNotificationPress = async (item: Notification) => {
+    try {
+      await handleMarkAsRead(item.id_notification);
+      if (item.id_tache) {
+        router.push("/(tabs)/Home/tasks");
+      }
+    } catch (error) {
+      console.error("Error handling notification press:", error);
+    }
+  };
+
   const handleMarkAllRead = async () => {
     try {
       const unread = notifications.filter(n => !n.lu);
@@ -141,7 +152,7 @@ export default function NotificationsScreen() {
           !item.lu && styles.unreadCard
         ]}
         activeOpacity={0.8}
-        onPress={() => handleMarkAsRead(item.id_notification)}
+        onPress={() => handleNotificationPress(item)}
       >
         <View style={[styles.iconContainer, { backgroundColor: iconBg }]}>
           <Ionicons name={iconName} size={22} color={iconColor} />
